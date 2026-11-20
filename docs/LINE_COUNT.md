@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 5983 | 약 8,000 | 75% |
-| Python | 487 | 약 4,000 | 12% |
-| **합계** | **6470** | **약 12,000** | **54%** |
+| Python | 2472 | 약 4,000 | 62% |
+| **합계** | **8455** | **약 12,000** | **70%** |
 
 ## C
 
@@ -54,9 +54,21 @@
 | 파일 | 전체 | 코드 | 주석 | 빈 줄 |
 |---|---:|---:|---:|---:|
 | `gui/__init__.py` | 0 | 0 | 0 | 0 |
+| `gui/main.py` | 36 | 18 | 7 | 11 |
 | `gui/services/__init__.py` | 0 | 0 | 0 | 0 |
+| `gui/services/app_config.py` | 43 | 23 | 9 | 11 |
+| `gui/services/engine_runner.py` | 154 | 100 | 23 | 31 |
+| `gui/services/map_render.py` | 110 | 60 | 30 | 20 |
+| `gui/services/result_loader.py` | 253 | 176 | 27 | 50 |
+| `gui/services/scenario_writer.py` | 148 | 100 | 25 | 23 |
 | `gui/services/terrain_generator.py` | 256 | 145 | 60 | 51 |
 | `gui/services/trail_generator.py` | 112 | 76 | 15 | 21 |
+| `gui/theme.py` | 188 | 155 | 19 | 14 |
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
+| `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
+| `gui/views/main_window.py` | 242 | 180 | 29 | 33 |
+| `gui/views/map_view.py` | 328 | 252 | 36 | 40 |
+| `gui/views/playback_bar.py` | 112 | 80 | 9 | 23 |
+| `gui/views/scenario_panel.py` | 299 | 233 | 25 | 41 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
-| **합계** | **487** | **313** | **84** | **90** |
+| **합계** | **2472** | **1740** | **329** | **403** |

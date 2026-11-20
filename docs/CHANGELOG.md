@@ -80,3 +80,31 @@
 ### 명세서와 달라진 점
 - `compute_spread_rate`, `simulate_fire_step`의 인자를 바꿈 (Scenario 전체를 받음, 화재 상태 `FireState` 추가)
 - 화선/연소 목록 분리, 대각선 차단 규칙 추가 (`docs/model.md` 7장)
+
+## 3단계 — Python GUI 기본 화면 + 결과 재생 애니메이션 (2026-11-20)
+
+### 만든 것
+- **`gui/main.py`**: 프로그램 시작점
+- **`gui/theme.py`**: 다크 테마 스타일시트, 연료·불·노드·경보·로그 색상표
+- **`services/app_config.py`**: 프로젝트·엔진·데이터·결과 폴더 경로, 엔진 실행 파일 위치
+- **`services/engine_runner.py`**: `QThread` + `subprocess.Popen`으로 `wildfire.exe` 실행, stdout을 한 줄씩 `[태그]`·진행률로 해석해 시그널로 전달, Windows에서 콘솔 창 숨김, 중지 기능
+- **`services/scenario_writer.py`**: 원본 .ini를 한 줄씩 복사하며 바꿀 값만 교체(주석 유지), 없는 키·구역 추가, 발화 지점 교체, 계절 프리셋 읽기
+- **`services/result_loader.py`**: .asc, 등산로, 등산객, 격자 CSV, 통계 CSV, summary.json 읽기, 실행 전 미리보기, 시각별 피해 면적·연소 셀 계산
+- **`services/map_render.py`**: 음영기복(Horn), 연료 색 합성, 시각 t의 불 레이어(막 붙은 불 노랑 → 오래 탄 불 빨강 → 전소 검정)
+- **`views/map_view.py`**: PyQtGraph 지도, 레이어 6종 켜기/끄기, 등고선(100 m), 불 도착 등시선(60분), 노드 이름, 마우스 정보, 클릭으로 발화 지점 선택
+- **`views/playback_bar.py`**: 재생/일시정지, 0.1분 단위 타임라인, 재생 속도 5단계, 실제 시각 표시
+- **`views/scenario_panel.py`**: 시나리오·계절·발화 지점·기상(파일/직접 입력)·진행 시간·시드·비화 설정, 실행/중지
+- **`views/log_console.py`**: 태그별 색 로그, 경고·오류 개수
+- **`views/main_window.py`**: 상단 엔진 상태 표시줄, 왼쪽 설정 패널, 지도/로그 탭, 메뉴, 실행 → 결과 자동 재생 흐름
+- **데이터**: `data/scenarios/season_presets.ini` (봄·여름·가을·겨울, 모두 [가정])
+
+### 검증 (화면 없는 offscreen 모드에서 자동 테스트)
+- 실행 버튼 → 시나리오 저장 → C 엔진 실행 → 결과 불러오기 → 재생까지 전체 흐름 확인
+- 지도 클릭 → 발화 지점 변경, 계절 프리셋 → 기상 슬라이더 변경 확인
+- 잘못된 시나리오 → 종료 코드 1, 상태 표시줄 빨간 메시지, 로그 탭 자동 이동 확인
+- 화면 캡처로 레이아웃·색 확인 (체크박스 표시, 배경색 문제 수정)
+- **Windows에서 실제 창으로 실행 확인 필요**
+
+### 명세서와 달라진 점
+- 대피·진화·통계·리포트 탭은 각 단계(4~6단계)에서 추가 (빈 탭을 미리 만들지 않음)
+- 지도 그리기 계산을 `services/map_render.py`로 분리 (Qt 없이 numpy만으로 테스트 가능)

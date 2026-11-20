@@ -6,7 +6,7 @@
 - **C 계산 엔진** (`c_core/`, `wildfire.exe`): 지도 읽기, 확산 시뮬레이션, 대피 경로, 진화 전략 등 모든 계산
 - **Python GUI** (`gui/`): 화면, 애니메이션, 기상 API 다운로드, 가상 지형 생성
 
-> 현재 진행 상황: **2단계 완료** (확산 엔진 + 결과 파일 저장)
+> 현재 진행 상황: **3단계 완료** (Python GUI 기본 화면 + 결과 재생 애니메이션)
 > 전체 설계는 [`docs/PROJECT_SPECIFICATION.md`](docs/PROJECT_SPECIFICATION.md), 단계별 기록은 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
 ---
@@ -156,7 +156,32 @@ bin\wildfire.exe ..\data\scenarios\tests\bad_weather.ini --mode run
 
 각각 "몇 번째 줄의 어떤 값이 왜 틀렸는지"를 `[ERROR]` 줄로 알려 주고 종료 코드 1로 끝납니다.
 
-## 5. 샘플 데이터 다시 만들기
+## 5. GUI 실행
+
+먼저 3장대로 C 엔진을 빌드하고, Python 패키지를 설치합니다. (프로젝트 폴더에서)
+
+```bash
+python -m pip install -r gui/requirements.txt
+```
+
+```bash
+python gui/main.py
+```
+
+| 화면 | 사용법 |
+|---|---|
+| 맨 위 "엔진 상태" | C 엔진이 출력하는 `[INFO]`, `[PROGRESS]` 줄과 진행률이 실시간으로 표시됨 |
+| 왼쪽 "시나리오 설정" | 기본 시나리오, 계절, 발화 지점, 기상(파일 / 직접 입력), 진행 시간, 시드를 고르고 **🔥 시뮬레이션 실행** |
+| 지도 | 음영기복 + 연료 색 + 등고선 위에 불(노랑 → 빨강 → 검정), 등산로, 대피소·주차장, 등산객(▲), 발화 지점(★). **지도를 클릭하면 발화 지점이 바뀜**. 마우스를 올리면 셀 정보 표시 |
+| 레이어 체크박스 | 연료 색, 등고선, 불, 도착 등시선(60분 간격), 등산로, 등산객 켜기/끄기 |
+| 재생 컨트롤 | ▶ 재생 / ⏸ 일시정지, 타임라인 슬라이더로 원하는 시각으로 이동, 재생 속도 |
+| "엔진 로그" 탭 | C 엔진 출력 전체 (콘솔 지도·통계 표 포함). 엔진이 오류로 끝나면 자동으로 이 탭으로 이동 |
+| 파일 메뉴 | 예전 결과(`summary.json`) 불러오기, 결과 폴더 열기 |
+
+GUI는 설정을 `data/scenarios/gui_custom.ini` 로 저장한 뒤 `c_core` 폴더에서 엔진을 실행하고,
+결과는 `output/gui_custom/` 에 저장됩니다. 계절 프리셋 값은 `data/scenarios/season_presets.ini` 에 있습니다.
+
+## 6. 샘플 데이터 다시 만들기
 
 가상 산(200 × 200칸, 30 m, 최고 950 m)과 등산로는 Python 생성기로 만듭니다. 프로젝트 폴더에서:
 
@@ -171,7 +196,7 @@ python gui/services/trail_generator.py
 `--size`, `--cell`, `--seed`, `--max-elev` 옵션으로 다른 산을 만들 수 있습니다. (`--help` 참고)
 실제 지형을 쓰려면 QGIS 등에서 DEM을 **ESRI ASCII Grid (.asc)** 로 내보내 `data/maps/` 에 넣고 시나리오의 `elevation_file` 을 바꾸면 됩니다.
 
-## 6. 줄 수 집계
+## 7. 줄 수 집계
 
 ```bash
 python tools/count_lines.py
@@ -179,7 +204,7 @@ python tools/count_lines.py
 
 결과는 `docs/LINE_COUNT.md` 에 저장됩니다.
 
-## 7. 참고 알고리즘 출처
+## 8. 참고 알고리즘 출처
 
 | 알고리즘 | 사용 위치 | 출처 |
 |---|---|---|
