@@ -22,6 +22,7 @@
 #include <math.h>
 
 #include "trail_io.h"
+#include "hiker.h"
 #include "grid.h"
 #include "util.h"
 #include "log.h"
@@ -602,7 +603,13 @@ static int parse_hiker_record(char **tokens, int token_count, const char *path, 
     hiker->pos_y = (double)graph->nodes[hiker->start_node].y;
     hiker->status = HIKER_HIKING;
     hiker->alert = ALERT_NONE;
+    hiker->finish_time_min = WF_NO_TIME;
+    hiker->track = NULL;
+    hiker->track_count = 0;
+    hiker->samples = NULL;
+    hiker->sample_count = 0;
     hiker->route.nodes = NULL;
+    hiker->route.edges = NULL;
     hiker->route.node_count = 0;
     hiker->route.exit_node = -1;
     hiker->route.travel_time_min = 0.0;
@@ -675,7 +682,7 @@ int load_hikers(const char *path, const TrailGraph *graph, Hiker **hikers, int *
     return 1;
 }
 
-/* 등산객 배열과 각자의 경로 메모리를 해제한다. */
+/* 등산객 배열과 각자의 경로·이동 기록 메모리를 해제한다. */
 void free_hikers(Hiker *hikers, int hiker_count)
 {
     int i;
@@ -684,7 +691,7 @@ void free_hikers(Hiker *hikers, int hiker_count)
         return;
     }
     for (i = 0; i < hiker_count; i++) {
-        free(hikers[i].route.nodes);
+        free_hiker_data(&hikers[i]);
     }
     free(hikers);
 }

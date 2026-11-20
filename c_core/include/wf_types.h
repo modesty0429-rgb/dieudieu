@@ -170,12 +170,28 @@ typedef enum {
 /* 대피 경로 */
 typedef struct {
     int    *nodes;            /* 지나는 노드 인덱스 순서 (동적 할당) */
+    int    *edges;            /* 노드 사이에 지나는 간선 인덱스 (node_count - 1개, 동적 할당) */
     int     node_count;
     int     exit_node;        /* 도착하는 대피소/주차장 인덱스 */
     double  travel_time_min;  /* 걸리는 시간 (분) */
     double  min_margin_min;   /* 경로 전체에서 가장 작은 안전 여유 (분) */
     int     found;            /* 경로를 찾았으면 1 */
 } Route;
+
+/* 등산객 이동 경로의 한 점 (셀 하나를 지나는 시각) */
+typedef struct {
+    double time_min;
+    double x, y;
+} TrackPoint;
+
+/* 등산객 상태를 일정 간격으로 기록한 것 (GUI 재생용) */
+typedef struct {
+    double      time_min;
+    double      x, y;            /* 위치 (격자 좌표) */
+    AlertLevel  alert;           /* 이 시각의 경보 단계 */
+    double      remaining_min;   /* 주변에 불이 오기까지 남은 시간 (분), 불이 오지 않으면 -1 */
+    HikerStatus status;
+} HikerSample;
 
 /* 등산객 (또는 함께 움직이는 일행) */
 typedef struct {
@@ -189,6 +205,11 @@ typedef struct {
     HikerStatus status;
     AlertLevel  alert;
     Route       route;
+    double      finish_time_min;  /* 대피 완료(또는 고립) 시각, 없으면 WF_NO_TIME */
+    TrackPoint  *track;           /* 셀 단위 이동 기록 (동적 할당) */
+    int          track_count;
+    HikerSample *samples;         /* 시간 간격별 상태 (동적 할당) */
+    int          sample_count;
 } Hiker;
 
 /* ================================================================
@@ -214,10 +235,13 @@ typedef struct {
 
 /* 경보 단계 기준 (화선 도착까지 남은 시간) */
 typedef struct {
-    double caution_min;     /* 이보다 적게 남으면 주의 */
-    double prepare_min;     /* 이보다 적게 남으면 대피 준비 */
-    double immediate_min;   /* 이보다 적게 남으면 즉시 대피 */
-    double check_radius_m;  /* 등산객 주변 몇 m 안의 불을 볼지 */
+    double caution_min;       /* 이보다 적게 남으면 주의 */
+    double prepare_min;       /* 이보다 적게 남으면 대피 준비 (이때 대피 출발) */
+    double immediate_min;     /* 이보다 적게 남으면 즉시 대피 */
+    double check_radius_m;    /* 경보 판정: 등산객 주변 몇 m 안의 불을 볼지 */
+    double notify_delay_min;  /* 발화 후 산불을 발견해 경보를 낼 수 있기까지 걸리는 시간 */
+    double safe_margin_min;   /* 경로 탐색: 여유가 이 이상이면 똑같이 안전하다고 보고 빠른 길 선택 */
+    double danger_radius_m;   /* 경로 탐색: 이 거리 안에 불이 있으면 그 지점은 위험 (복사열) */
 } AlertSettings;
 
 /* 진화 자원 설정 */

@@ -9,7 +9,7 @@
  * 모드:
  *   printmap : 시나리오를 읽고 지도·요약을 콘솔에 출력 (1단계)
  *   run      : 산불 확산 시뮬레이션 → output 폴더에 CSV/JSON 저장 (2단계)
- *   evac     : 등산객 대피 경로·경보 (4단계 예정)
+ *   evac     : 확산 시뮬레이션 + 등산객 대피 경로·경보 → evacuation.json (4단계)
  *   optimize : 방화선·헬기 배치 최적화 (5단계 예정)
  *   mc       : 몬테카를로 반복 실험 (6단계 예정)
  *   all      : run → evac → optimize → mc 모두
@@ -29,6 +29,7 @@
 #include "spread_sim.h"
 #include "output_csv.h"
 #include "output_json.h"
+#include "evac_alert.h"
 #include "util.h"
 #include "log.h"
 
@@ -175,7 +176,8 @@ static void output_path(const Scenario *sc, const char *file_name, char *out, si
 }
 
 /* 확산 결과 파일 4개 + 요약 JSON을 저장한다. 성공 1, 실패 0 */
-static int save_fire_results(const Scenario *sc, const SimResult *res, double elapsed_sec)
+static int save_fire_results(const Scenario *sc, const SimResult *res, const ResultFlags *flags,
+                             double elapsed_sec)
 {
     char path[WF_PATH_MAX];
     int  ok = 1;
@@ -189,7 +191,7 @@ static int save_fire_results(const Scenario *sc, const SimResult *res, double el
     output_path(sc, "stats.csv", path, sizeof(path));
     ok = ok && write_stats_csv(path, res);
     output_path(sc, "summary.json", path, sizeof(path));
-    ok = ok && write_summary_json(path, sc, res, elapsed_sec);
+    ok = ok && write_summary_json(path, sc, res, flags, elapsed_sec);
     if (ok) {
         log_result(path);   /* GUI는 summary.json 경로를 받아 나머지 파일을 찾는다 */
     }
@@ -197,18 +199,19 @@ static int save_fire_results(const Scenario *sc, const SimResult *res, double el
 }
 
 /*
- * run 모드: 산불 확산 시뮬레이션을 실행하고 결과를 저장한다.
+ * run / evac 모드: 산불 확산 시뮬레이션(+ 대피 안내)을 실행하고 결과를 저장한다.
  *   1) 결과 폴더 만들기, 로그 파일 열기
- *   2) run_fire_simulation 실행
- *   3) 콘솔에 통계 표와 마지막 화재 지도 출력
+ *   2) run_fire_simulation 실행 → 콘솔에 통계 표와 마지막 화재 지도
+ *   3) (evac) run_evacuation 실행 → 콘솔에 대피 안내 표, evacuation.json
  *   4) CSV/JSON 저장
  */
-static int run_fire_mode(Scenario *sc, const CommandLine *cmd, clock_t start_clock)
+static int run_fire_mode(Scenario *sc, const CommandLine *cmd, clock_t start_clock, int with_evacuation)
 {
-    SimOptions opts;
-    SimResult  res;
-    char       log_path[WF_PATH_MAX];
-    int        exit_code = WF_OK;
+    SimOptions  opts;
+    SimResult   res;
+    ResultFlags flags = { 0, 0, 0 };
+    char        log_path[WF_PATH_MAX];
+    int         exit_code = WF_OK;
 
     if (!make_directories(sc->output_dir)) {
         log_error("결과 폴더를 만들 수 없음: %s", sc->output_dir);
@@ -233,8 +236,27 @@ static int run_fire_mode(Scenario *sc, const CommandLine *cmd, clock_t start_clo
     print_sim_statistics(&res, 30.0);
     print_map_fire(sc, (cmd->map_step > 0) ? cmd->map_step : choose_map_step(&sc->grid, 100), res.end_time_min);
 
+    if (with_evacuation) {
+        EvacSummary evac;
+        char        evac_path[WF_PATH_MAX];
+
+        log_progress(82, "등산객 대피 경로 계산 중 (%d팀)", sc->hiker_count);
+        if (!run_evacuation(sc, &evac)) {
+            sim_result_free(&res);
+            return WF_ERR_MEMORY;
+        }
+        print_evacuation_table(sc, &evac);
+        log_info("대피 안내: %d팀 중 대피 완료 %d팀, 고립 %d팀, 위험 %d팀 %d명",
+                 evac.hikers, evac.safe, evac.trapped, evac.at_risk_hikers, evac.at_risk_people);
+        output_path(sc, "evacuation.json", evac_path, sizeof(evac_path));
+        if (!write_evacuation_json(evac_path, sc, &evac)) {
+            exit_code = WF_ERR_OTHER;
+        }
+        flags.evacuation = 1;
+    }
+
     log_progress(90, "결과 저장 중: %s", sc->output_dir);
-    if (!save_fire_results(sc, &res, (double)(clock() - start_clock) / CLOCKS_PER_SEC)) {
+    if (!save_fire_results(sc, &res, &flags, (double)(clock() - start_clock) / CLOCKS_PER_SEC)) {
         exit_code = WF_ERR_OTHER;
     }
     sim_result_free(&res);
@@ -279,14 +301,16 @@ int main(int argc, char *argv[])
         exit_code = run_print_map(&sc, cmd.map_step);
         break;
     case MODE_RUN:
-        exit_code = run_fire_mode(&sc, &cmd, start_clock);
+        exit_code = run_fire_mode(&sc, &cmd, start_clock, 0);
         break;
     case MODE_EVAC:
+        exit_code = run_fire_mode(&sc, &cmd, start_clock, 1);
+        break;
     case MODE_OPTIMIZE:
     case MODE_MC:
     case MODE_ALL:
     default:
-        log_error("이 모드는 아직 구현되지 않았습니다. 지금은 --mode printmap, --mode run 만 사용할 수 있습니다.");
+        log_error("이 모드는 아직 구현되지 않았습니다. 지금은 --mode printmap, run, evac 만 사용할 수 있습니다.");
         exit_code = WF_ERR_OTHER;
         break;
     }

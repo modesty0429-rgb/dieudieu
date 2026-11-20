@@ -7,7 +7,8 @@
     3) 불: 연소 중(노랑→빨강), 전소(검정) (ImageItem, 투명 배경)
     4) 불 도착 등시선 (60분 간격)          (IsocurveItem)
     5) 등산로, 노드, 노드 이름
-    6) 등산객, 발화 지점
+    6) 대피 경로 (팀별, 선택한 팀은 굵게)
+    7) 등산객(경보 단계 색, 시각에 따라 이동), 발화 지점
 
 좌표: 격자 셀 (x, y) 는 화면에서 [x, x+1] × [y, y+1] 사각형이다. 점은 셀 중심(x+0.5, y+0.5)에 찍는다.
 y 축을 뒤집어(invertY) y = 0(북쪽)이 위에 오게 한다.
@@ -42,6 +43,9 @@ class MapView(QWidget):
         self._contours: list[pg.IsocurveItem] = []
         self._isochrones: list[pg.IsocurveItem] = []
         self._node_labels: list[pg.TextItem] = []
+        self._route_items: dict[int, pg.PlotDataItem] = {}   # 팀 id → 경로 선
+        self._hiker_labels: list[pg.TextItem] = []
+        self.selected_hiker = -1
 
         self._build_plot()
         self._build_controls()
@@ -75,7 +79,7 @@ class MapView(QWidget):
         self.trail_items: list[pg.PlotDataItem] = []
         self.node_item = pg.ScatterPlotItem(size=11, pen=pg.mkPen("k", width=1))
         self.node_item.setZValue(30)
-        self.hiker_item = pg.ScatterPlotItem(size=13, symbol="t1", pen=pg.mkPen("k", width=1),
+        self.hiker_item = pg.ScatterPlotItem(size=13, symbol="d", pen=pg.mkPen("k", width=1.5),
                                              brush=pg.mkBrush(255, 255, 255))
         self.hiker_item.setZValue(40)
         self.ignition_item = pg.ScatterPlotItem(size=20, symbol="star", pen=pg.mkPen("w", width=1),
@@ -103,6 +107,7 @@ class MapView(QWidget):
         self.check_isochrone = self._add_check("도착 등시선(60분)", False, self._update_isochrone_visibility)
         self.check_trails = self._add_check("등산로", True, self._update_trail_visibility)
         self.check_hikers = self._add_check("등산객", True, self._update_hiker_visibility)
+        self.check_routes = self._add_check("대피 경로", True, self._update_route_visibility)
         self.controls.addStretch(1)
         self.status_label = QLabel("")
         self.status_label.setObjectName("statusText")
@@ -120,8 +125,9 @@ class MapView(QWidget):
         def chip(rgb, label):
             return f'<span style="color:rgb{tuple(rgb)}">■</span> {label}'
         fuels = [chip(theme.FUEL_COLORS[c], theme.FUEL_NAMES[c]) for c in (1, 2, 3, 4, 5, 7, 8, 9)]
+        alerts = "".join(f'<span style="color:{color}">◆</span>' for color in theme.ALERT_COLORS.values())
         fire = [chip(theme.FIRE_NEW, "막 붙은 불"), chip(theme.FIRE_OLD, "연소 중"), chip((90, 90, 90), "전소"),
-                chip(theme.IGNITION_COLOR, "★ 발화 지점"), "▲ 등산객",
+                chip(theme.IGNITION_COLOR, "★ 발화 지점"), f"{alerts} 등산객(정상→고립)",
                 chip(theme.NODE_COLORS["PARKING"], "● 주차장"), chip(theme.NODE_COLORS["SHELTER"], "● 대피소")]
         return "  ".join(fuels) + "<br>" + "  ".join(fire)
 
@@ -138,6 +144,7 @@ class MapView(QWidget):
         self._draw_trails()
         self._draw_hikers()
         self.set_ignitions(map_data.ignitions)
+        self._clear_routes()
         self._clear_isochrones()
         self.fire_item.clear()
         self.status_label.setText("")
@@ -153,13 +160,16 @@ class MapView(QWidget):
             self._draw_hikers()
             self.set_ignitions(result.map.ignitions)
         self.result = result
+        self.selected_hiker = -1
         self._draw_isochrones()
+        self._draw_routes()
         self.set_time(0.0)
 
     def set_time(self, t: float) -> None:
         """시각 t 의 불 모습을 그린다."""
         self.time = t
         self._redraw_fire()
+        self._draw_hikers()
         if self.result is not None:
             self.status_label.setText(
                 f"피해 {self.result.burned_area_at(t):7.1f} ha  |  연소 중 {self.result.burning_cells_at(t):4d}칸")
@@ -260,18 +270,101 @@ class MapView(QWidget):
         self._update_trail_visibility()
 
     def _draw_hikers(self) -> None:
-        """등산객을 현재 위치(3단계에서는 시작 노드)에 그린다. 4단계에서 이동·경보 색이 추가된다."""
+        """
+        등산객을 그린다.
+          대피 결과가 있으면: 시각 t 의 위치에 경보 단계 색으로 (이동 애니메이션)
+          없으면: 시작 노드에 흰색으로
+        """
+        for label in self._hiker_labels:
+            self.plot.removeItem(label)
+        self._hiker_labels.clear()
         if self.map is None:
             self.hiker_item.clear()
             return
-        xs, ys = [], []
-        for hiker in self.map.hikers:
-            node = self.map.node_by_id(hiker.node_id)
-            if node is not None:
-                xs.append(node.x + 0.5)
-                ys.append(node.y - 1.0)     # 노드 기호와 겹치지 않게 살짝 위에
-        self.hiker_item.setData(xs, ys)
+
+        spots = []
+        evacuation = self.result.evacuation if self.result is not None else None
+        if evacuation is not None:
+            for hiker in evacuation.hikers:
+                x, y = hiker.position_at(self.time)
+                color = theme.ALERT_COLORS.get(hiker.alert_at(self.time, evacuation.alert_levels), "#ffffff")
+                size = 18 if hiker.id == self.selected_hiker else 13
+                spots.append({"pos": (x + 0.5, y - 0.8), "brush": pg.mkBrush(color), "size": size})
+                self._add_hiker_label(f"H{hiker.id}", x, y)
+        else:
+            for hiker in self.map.hikers:
+                node = self.map.node_by_id(hiker.node_id)
+                if node is not None:
+                    spots.append({"pos": (node.x + 0.5, node.y - 0.8), "brush": pg.mkBrush("w"), "size": 13})
+                    self._add_hiker_label(f"H{hiker.id}", node.x, node.y)
+        self.hiker_item.setData(spots)
         self._update_hiker_visibility()
+
+    def _add_hiker_label(self, text: str, x: float, y: float) -> None:
+        label = pg.TextItem(text, color=(255, 255, 255), anchor=(1.1, 1.3))
+        font = QFont()
+        font.setPointSize(8)
+        font.setBold(True)
+        label.setFont(font)
+        label.setPos(x + 0.5, y - 0.8)
+        label.setZValue(41)
+        label.setVisible(self.check_hikers.isChecked())
+        self.plot.addItem(label)
+        self._hiker_labels.append(label)
+
+    # ------------------------------------------------------------------
+    # 대피 경로
+    # ------------------------------------------------------------------
+    def _route_points(self, node_ids: list[int]) -> list[tuple[int, int]]:
+        """노드 id 순서 → 등산로 간선 좌표를 이어 붙인 꺾은선"""
+        points: list[tuple[int, int]] = []
+        for a, b in zip(node_ids[:-1], node_ids[1:]):
+            edge = next((e for e in self.map.edges if (e.start_id, e.end_id) in ((a, b), (b, a))), None)
+            if edge is None:
+                continue
+            segment = edge.points if edge.start_id == a else list(reversed(edge.points))
+            points.extend(segment if not points else segment[1:])
+        return points
+
+    def _clear_routes(self) -> None:
+        for item in self._route_items.values():
+            self.plot.removeItem(item)
+        self._route_items.clear()
+
+    def _draw_routes(self) -> None:
+        """팀별 추천 대피 경로. 위험한 팀(고립·여유 부족)은 빨간색, 나머지는 초록색."""
+        self._clear_routes()
+        if self.result is None or self.result.evacuation is None:
+            return
+        for hiker in self.result.evacuation.hikers:
+            if not hiker.route_found or len(hiker.route_node_ids) < 2:
+                continue
+            points = self._route_points(hiker.route_node_ids)
+            item = pg.PlotDataItem([x + 0.5 for x, _ in points], [y + 0.5 for _, y in points])
+            item.setZValue(25)
+            self.plot.addItem(item)
+            self._route_items[hiker.id] = item
+        self._style_routes()
+
+    def _style_routes(self) -> None:
+        if self.result is None or self.result.evacuation is None:
+            return
+        risky = {h.id for h in self.result.evacuation.hikers if h.at_risk}
+        for hiker_id, item in self._route_items.items():
+            color = theme.ALERT_COLORS["IMMEDIATE"] if hiker_id in risky else theme.ALERT_COLORS["NONE"]
+            selected = hiker_id == self.selected_hiker
+            dimmed = self.selected_hiker >= 0 and not selected
+            pen = pg.mkPen(color, width=5 if selected else 2.5)
+            item.setPen(pen)
+            item.setOpacity(0.25 if dimmed else 0.9)
+            item.setZValue(27 if selected else 25)
+        self._update_route_visibility()
+
+    def highlight_hiker(self, hiker_id: int) -> None:
+        """대피 화면에서 고른 팀의 경로를 굵게, 나머지는 흐리게"""
+        self.selected_hiker = hiker_id
+        self._style_routes()
+        self._draw_hikers()
 
     # ------------------------------------------------------------------
     # 레이어 켜기/끄기
@@ -291,7 +384,14 @@ class MapView(QWidget):
         self.node_item.setVisible(visible)
 
     def _update_hiker_visibility(self) -> None:
-        self.hiker_item.setVisible(self.check_hikers.isChecked())
+        visible = self.check_hikers.isChecked()
+        self.hiker_item.setVisible(visible)
+        for label in self._hiker_labels:
+            label.setVisible(visible)
+
+    def _update_route_visibility(self) -> None:
+        for item in self._route_items.values():
+            item.setVisible(self.check_routes.isChecked())
 
     # ------------------------------------------------------------------
     # 마우스
@@ -318,6 +418,9 @@ class MapView(QWidget):
         if self.result is not None:
             arrival = self.result.arrival[y, x]
             text += f"  |  불 도착 {arrival:6.1f}분" if arrival >= 0 else "  |  불 도착 안 함"
+        node = next((n for n in m.nodes if abs(n.x - x) <= 1 and abs(n.y - y) <= 1), None)
+        if node is not None:
+            text += f"  |  {node.name}"
         self.info_label.setText(text)
 
     def _on_mouse_clicked(self, event) -> None:

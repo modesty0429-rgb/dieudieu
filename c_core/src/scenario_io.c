@@ -63,6 +63,9 @@ void scenario_set_defaults(Scenario *sc)
     sc->alert.prepare_min = 60.0;
     sc->alert.immediate_min = 30.0;
     sc->alert.check_radius_m = 500.0;
+    sc->alert.notify_delay_min = 10.0;
+    sc->alert.safe_margin_min = 30.0;
+    sc->alert.danger_radius_m = 60.0;
 
     sc->supp.firebreak_cells = 40;
     sc->supp.firebreak_ready_min = 60.0;
@@ -340,6 +343,15 @@ static int apply_evacuation(Scenario *sc, const SettingContext *ctx, const char 
     }
     if (str_equals_ignore_case(ctx->key, "check_radius_m")) {
         return read_double_setting(ctx, value, 0.0, 5000.0, &a->check_radius_m);
+    }
+    if (str_equals_ignore_case(ctx->key, "notify_delay_min")) {
+        return read_double_setting(ctx, value, 0.0, 1440.0, &a->notify_delay_min);
+    }
+    if (str_equals_ignore_case(ctx->key, "safe_margin_min")) {
+        return read_double_setting(ctx, value, 0.0, 600.0, &a->safe_margin_min);
+    }
+    if (str_equals_ignore_case(ctx->key, "danger_radius_m")) {
+        return read_double_setting(ctx, value, 0.0, 1000.0, &a->danger_radius_m);
     }
     return warn_unknown_key(ctx);
 }

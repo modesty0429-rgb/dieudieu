@@ -11,6 +11,8 @@
 #include <math.h>
 
 #include "output_json.h"
+#include "evac_alert.h"
+#include "evac_route.h"
 #include "wf_config.h"
 #include "util.h"
 #include "log.h"
@@ -168,7 +170,8 @@ void json_bool(JsonWriter *w, const char *key, int value)
  * summary.json: 시나리오 정보, 격자 정보, 최종 결과, 생성한 파일 목록.
  * Python GUI는 이 파일을 먼저 읽고, 여기에 적힌 파일 이름으로 나머지 결과를 찾는다.
  */
-int write_summary_json(const char *path, const Scenario *sc, const SimResult *res, double elapsed_sec)
+int write_summary_json(const char *path, const Scenario *sc, const SimResult *res,
+                       const ResultFlags *flags, double elapsed_sec)
 {
     JsonWriter w;
     char       start_text[32];
@@ -240,10 +243,138 @@ int write_summary_json(const char *path, const Scenario *sc, const SimResult *re
     json_string(&w, "fire_events", "fire_events.csv");
     json_string(&w, "stats", "stats.csv");
     json_string(&w, "log", "run.log");
+    if (flags->evacuation) {
+        json_string(&w, "evacuation", "evacuation.json");
+    }
     json_end_object(&w);
 
     json_end_object(&w);
 
+    if (!json_close(&w)) {
+        log_error("JSON 저장 중 오류: %s", path);
+        return 0;
+    }
+    return 1;
+}
+
+/* ================================================================
+ * 대피 결과 저장
+ * ================================================================ */
+
+/* 안전 여유: 불이 오지 않으면 null */
+static void json_margin(JsonWriter *w, const char *key, double margin)
+{
+    if (margin_is_unlimited(margin)) {
+        begin_item(w, key);
+        fputs("null", w->fp);
+    } else {
+        json_number(w, key, margin);
+    }
+}
+
+/* 등산객 한 팀의 결과 */
+static void write_hiker_json(JsonWriter *w, const Scenario *sc, const Hiker *h)
+{
+    const TrailGraph *g = &sc->trails;
+    int               i;
+
+    json_begin_object(w, NULL);
+    json_int(w, "id", h->id);
+    json_string(w, "name", h->name);
+    json_int(w, "group_size", h->group_size);
+    json_number(w, "speed_kmh", h->speed_kmh);
+    json_int(w, "start_node", g->nodes[h->start_node].id);
+    json_string(w, "start_name", g->nodes[h->start_node].name);
+    json_bool(w, "needs_evacuation", time_is_set(h->depart_time_min));
+    json_number(w, "depart_time_min", time_is_set(h->depart_time_min) ? h->depart_time_min : -1.0);
+    json_number(w, "finish_time_min", time_is_set(h->finish_time_min) ? h->finish_time_min : -1.0);
+    json_string(w, "status", hiker_status_name(h->status));
+    json_bool(w, "at_risk", hiker_is_at_risk(sc, h));
+
+    json_begin_object(w, "route");
+    json_bool(w, "found", h->route.found);
+    if (h->route.found) {
+        json_int(w, "exit_node", g->nodes[h->route.exit_node].id);
+        json_string(w, "exit_name", g->nodes[h->route.exit_node].name);
+        json_number(w, "travel_time_min", h->route.travel_time_min);
+        json_margin(w, "min_margin_min", h->route.min_margin_min);
+        json_begin_array(w, "nodes");
+        for (i = 0; i < h->route.node_count; i++) {
+            json_int(w, NULL, g->nodes[h->route.nodes[i]].id);
+        }
+        json_end_array(w);
+    }
+    json_end_object(w);
+
+    /* 1분 간격 기록: [시각, x, y, 경보 단계 번호, 남은 시간, 상태 번호] — 파일 크기를 줄이려고 배열로 저장 */
+    json_begin_array(w, "samples");
+    for (i = 0; i < h->sample_count; i++) {
+        const HikerSample *s = &h->samples[i];
+        begin_item(w, NULL);
+        fprintf(w->fp, "[%.1f, %.2f, %.2f, %d, %.1f, %d]", s->time_min, s->x, s->y,
+                (int)s->alert, s->remaining_min, (int)s->status);
+    }
+    json_end_array(w);
+    json_end_object(w);
+}
+
+/* evacuation.json: 경보 기준, 요약, 등산객별 경로·출발·도착·안전 여유·1분 간격 상태 */
+int write_evacuation_json(const char *path, const Scenario *sc, const EvacSummary *summary)
+{
+    JsonWriter w;
+    int        i;
+
+    if (!json_open(&w, path)) {
+        return 0;
+    }
+    json_begin_object(&w, NULL);
+
+    json_begin_object(&w, "settings");
+    json_number(&w, "caution_min", sc->alert.caution_min);
+    json_number(&w, "prepare_min", sc->alert.prepare_min);
+    json_number(&w, "immediate_min", sc->alert.immediate_min);
+    json_number(&w, "check_radius_m", sc->alert.check_radius_m);
+    json_number(&w, "notify_delay_min", sc->alert.notify_delay_min);
+    json_number(&w, "safe_margin_min", sc->alert.safe_margin_min);
+    json_number(&w, "danger_radius_m", sc->alert.danger_radius_m);
+    json_end_object(&w);
+
+    json_begin_object(&w, "summary");
+    json_int(&w, "hikers", summary->hikers);
+    json_int(&w, "people", summary->people);
+    json_int(&w, "evacuated", summary->evacuated);
+    json_int(&w, "safe", summary->safe);
+    json_int(&w, "trapped", summary->trapped);
+    json_int(&w, "at_risk_hikers", summary->at_risk_hikers);
+    json_int(&w, "at_risk_people", summary->at_risk_people);
+    json_end_object(&w);
+
+    json_begin_array(&w, "sample_columns");
+    json_string(&w, NULL, "time_min");
+    json_string(&w, NULL, "x");
+    json_string(&w, NULL, "y");
+    json_string(&w, NULL, "alert");
+    json_string(&w, NULL, "remaining_min");
+    json_string(&w, NULL, "status");
+    json_end_array(&w);
+    json_begin_array(&w, "alert_levels");
+    for (i = ALERT_NONE; i <= ALERT_ISOLATED; i++) {
+        json_string(&w, NULL, alert_level_name((AlertLevel)i));
+    }
+    json_end_array(&w);
+    json_begin_array(&w, "status_names");
+    for (i = HIKER_HIKING; i <= HIKER_TRAPPED; i++) {
+        json_string(&w, NULL, hiker_status_name((HikerStatus)i));
+    }
+    json_end_array(&w);
+
+    json_begin_array(&w, "hikers");
+    for (i = 0; i < sc->hiker_count; i++) {
+        write_hiker_json(&w, sc, &sc->hikers[i]);
+    }
+    json_end_array(&w);
+
+    json_end_object(&w);
     if (!json_close(&w)) {
         log_error("JSON 저장 중 오류: %s", path);
         return 0;

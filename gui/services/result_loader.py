@@ -77,6 +77,77 @@ class MapData:
         return next((n for n in self.nodes if n.id == node_id), None)
 
 
+ALERT_KOREAN = {"NONE": "정상", "CAUTION": "주의", "PREPARE": "대피준비",
+                "IMMEDIATE": "즉시대피", "ISOLATED": "고립"}
+
+
+@dataclass
+class HikerEvacuation:
+    """등산객 한 팀의 대피 결과 (evacuation.json 의 hikers 항목)"""
+    id: int
+    name: str
+    group_size: int
+    speed_kmh: float
+    start_name: str
+    needs_evacuation: bool
+    depart_time: float          # 출발 시각 (분), 대피 불필요면 -1
+    finish_time: float          # 대피 완료·고립 시각 (분), 없으면 -1
+    status: str                 # HIKING, SAFE, TRAPPED ...
+    at_risk: bool
+    route_found: bool
+    route_node_ids: list[int]
+    exit_name: str
+    travel_time: float
+    min_margin: float | None    # None 이면 경로 근처에 불이 오지 않음
+    samples: np.ndarray         # [시각, x, y, 경보 번호, 남은 시간, 상태 번호] × 1분 간격
+
+    def _index_at(self, t: float) -> int:
+        times = self.samples[:, 0]
+        return int(np.clip(np.searchsorted(times, t, side="right") - 1, 0, len(times) - 1))
+
+    def position_at(self, t: float) -> tuple[float, float]:
+        """시각 t 의 위치 (1분 간격 기록 사이를 선형 보간)"""
+        times = self.samples[:, 0]
+        return float(np.interp(t, times, self.samples[:, 1])), float(np.interp(t, times, self.samples[:, 2]))
+
+    def alert_at(self, t: float, levels: list[str]) -> str:
+        return levels[int(self.samples[self._index_at(t), 3])]
+
+    def remaining_at(self, t: float) -> float:
+        """주변에 불이 오기까지 남은 시간 (분), 불이 오지 않으면 -1"""
+        return float(self.samples[self._index_at(t), 4])
+
+    def status_at(self, t: float, names: list[str]) -> str:
+        return names[int(self.samples[self._index_at(t), 5])]
+
+
+@dataclass
+class EvacuationData:
+    settings: dict
+    summary: dict
+    alert_levels: list[str]
+    status_names: list[str]
+    hikers: list[HikerEvacuation]
+
+
+def load_evacuation(path: Path) -> EvacuationData:
+    """evacuation.json 읽기"""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    hikers = []
+    for h in data["hikers"]:
+        route = h["route"]
+        hikers.append(HikerEvacuation(
+            id=h["id"], name=h["name"], group_size=h["group_size"], speed_kmh=h["speed_kmh"],
+            start_name=h["start_name"], needs_evacuation=h["needs_evacuation"],
+            depart_time=h["depart_time_min"], finish_time=h["finish_time_min"], status=h["status"],
+            at_risk=h["at_risk"], route_found=route["found"], route_node_ids=route.get("nodes", []),
+            exit_name=route.get("exit_name", ""), travel_time=route.get("travel_time_min", 0.0),
+            min_margin=route.get("min_margin_min"),
+            samples=np.asarray(h["samples"], dtype=np.float64).reshape(-1, 6),
+        ))
+    return EvacuationData(data["settings"], data["summary"], data["alert_levels"], data["status_names"], hikers)
+
+
 @dataclass
 class SimulationResult:
     """시뮬레이션 결과 (summary.json 과 CSV 파일들)"""
@@ -86,6 +157,7 @@ class SimulationResult:
     arrival: np.ndarray          # 불 도착 시각 (분), 없으면 -1
     burnout: np.ndarray          # 전소 시각 (분), 없으면 -1
     stats: dict[str, np.ndarray]
+    evacuation: EvacuationData | None = None
 
     @property
     def end_time(self) -> float:
@@ -236,6 +308,7 @@ def load_result(summary_path: Path) -> SimulationResult:
     data.start_time = parse_datetime(summary["scenario"].get("start_datetime", ""))
 
     files = summary["files"]
+    evacuation = load_evacuation(out_dir / files["evacuation"]) if "evacuation" in files else None
     return SimulationResult(
         map=data,
         summary=summary,
@@ -243,6 +316,7 @@ def load_result(summary_path: Path) -> SimulationResult:
         arrival=read_grid_csv(out_dir / files["arrival_time"]),
         burnout=read_grid_csv(out_dir / files["burnout_time"]),
         stats=read_stats_csv(out_dir / files["stats"]),
+        evacuation=evacuation,
     )
 
 

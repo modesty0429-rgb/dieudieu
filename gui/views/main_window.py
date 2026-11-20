@@ -4,10 +4,10 @@
     ┌─────────────────────────────────────────────────────────┐
     │ 엔진 상태: [INFO] ...                       [■■■■□□ 60%] │  ← C 엔진 stdout 실시간 표시
     ├──────────────┬──────────────────────────────────────────┤
-    │ 시나리오      │  [지도] [엔진 로그]                       │
-    │ 설정 패널     │   지도 (MapView)                          │
-    │ (왼쪽 도킹)   │   ▶ ━━━━━━●━━━━━ T+120분 (15:00)  속도   │
-    └──────────────┴──────────────────────────────────────────┘
+    │ 시나리오      │  [지도] [엔진 로그]            │ 대피 안내   │
+    │ 설정 패널     │   지도 (MapView)               │ (오른쪽     │
+    │ (왼쪽 도킹)   │   ▶ ━━━━●━━━ T+120분 (15:00)  │  도킹)      │
+    └──────────────┴───────────────────────────────┴────────────┘
 
 실행 흐름: 설정 패널 "실행" → 시나리오 파일 저장 → C 엔진 실행(별도 스레드)
           → stdout 한 줄씩 상태 표시 → 끝나면 summary.json 읽기 → 지도 애니메이션 재생
@@ -27,6 +27,7 @@ from services import app_config
 from services.engine_runner import EngineLine, EngineRunner
 from services.result_loader import SimulationResult, load_result, load_scenario_preview
 from services.scenario_writer import ScenarioOverrides, write_scenario
+from views.evacuation_view import EvacuationView
 from views.log_console import LogConsole
 from views.map_view import MapView
 from views.playback_bar import PlaybackBar
@@ -107,6 +108,13 @@ class MainWindow(QMainWindow):
         dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
 
+        self.evacuation_view = EvacuationView()
+        evac_dock = QDockWidget("🚶 대피 안내", self)
+        evac_dock.setWidget(self.evacuation_view)
+        evac_dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        evac_dock.setMinimumWidth(500)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, evac_dock)
+
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("파일")
         open_action = QAction("결과 불러오기 (summary.json)...", self)
@@ -132,6 +140,8 @@ class MainWindow(QMainWindow):
         self.panel.ignition_changed.connect(self._on_ignition_changed)
         self.map_view.cell_clicked.connect(self.panel.set_ignition)
         self.playback.time_changed.connect(self.map_view.set_time)
+        self.playback.time_changed.connect(self.evacuation_view.update_time)
+        self.evacuation_view.hiker_selected.connect(self.map_view.highlight_hiker)
         self.runner.line_received.connect(self._on_engine_line)
         self.runner.finished.connect(self._on_engine_finished)
 
@@ -156,6 +166,7 @@ class MainWindow(QMainWindow):
             return
         self.result = None
         self.map_view.set_map(preview)
+        self.evacuation_view.set_data(None, preview)
         self.panel.set_map_size(preview.width, preview.height)
         self._on_ignition_changed(self.panel.ignition_x.value(), self.panel.ignition_y.value())
         self.playback.set_range(0.0, preview.start_time)
@@ -171,8 +182,9 @@ class MainWindow(QMainWindow):
             return False
         self.result = result
         self.map_view.set_result(result)
+        self.evacuation_view.set_data(result.evacuation, result.map)
         self.panel.set_map_size(result.map.width, result.map.height)
-        self.playback.set_range(result.end_time, result.map.start_time)
+        self.playback.set_range(result.end_time, result.map.start_time)   # 시각 0 으로 → 표 갱신
         r = result.summary["result"]
         self.status_bar.show_message(
             f"결과 '{result.map.name}': 피해 {r['burned_area_ha']:.1f} ha, 비화 {r['spot_fires']}회, "
@@ -192,7 +204,7 @@ class MainWindow(QMainWindow):
             return
         self.log_console.append_gui_message(f"시나리오 저장: {scenario_path}")
         self.playback.pause()
-        if self.runner.start(scenario_path, "run"):
+        if self.runner.start(scenario_path, "evac"):     # 확산 + 대피 안내
             self.panel.set_running(True)
             self.status_bar.progress.setValue(0)
 

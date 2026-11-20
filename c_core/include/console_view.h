@@ -7,6 +7,7 @@
 #define CONSOLE_VIEW_H
 
 #include "wf_types.h"
+#include "evac_alert.h"
 
 void print_scenario_summary(const Scenario *sc);
 void print_terrain_statistics(const Scenario *sc);
@@ -15,5 +16,6 @@ void print_map_elevation(const Scenario *sc, int step);
 void print_map_fire(const Scenario *sc, int step, double time_min);
 void print_sim_statistics(const SimResult *res, double every_min);
 int  choose_map_step(const Grid *grid, int max_columns);
+void print_evacuation_table(const Scenario *sc, const EvacSummary *summary);
 
 #endif /* CONSOLE_VIEW_H */

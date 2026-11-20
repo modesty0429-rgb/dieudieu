@@ -14,6 +14,7 @@
 
 #include "console_view.h"
 #include "trail_io.h"
+#include "evac_route.h"
 #include "grid.h"
 #include "util.h"
 #include "log.h"
@@ -444,5 +445,62 @@ void print_terrain_statistics(const Scenario *sc)
         }
     }
     printf("===========================================\n");
+    fflush(stdout);
+}
+
+/* ================================================================
+ * 대피 결과 표
+ * ================================================================ */
+
+/* 경로를 "계곡대피소 → 솔밭삼거리 → 남문주차장" 처럼 출력한다. */
+static void print_route_names(const Scenario *sc, const Route *route)
+{
+    int i;
+    for (i = 0; i < route->node_count; i++) {
+        printf("%s%s", (i > 0) ? " → " : "", sc->trails.nodes[route->nodes[i]].name);
+    }
+}
+
+/* 등산객별 대피 결과를 출력한다. */
+void print_evacuation_table(const Scenario *sc, const EvacSummary *summary)
+{
+    int i;
+
+    printf("\n================ 등산객 대피 안내 ================\n");
+    printf(" 경보 기준: 주의 < %.0f분, 대피준비 < %.0f분(이때 출발), 즉시대피 < %.0f분, 판정 반경 %.0f m\n",
+           sc->alert.caution_min, sc->alert.prepare_min, sc->alert.immediate_min, sc->alert.check_radius_m);
+    printf(" 경보 가능 시각: 발화 후 %.0f분, 경로 위험 반경 %.0f m, 충분한 여유 %.0f분\n",
+           sc->alert.notify_delay_min, sc->alert.danger_radius_m, sc->alert.safe_margin_min);
+    for (i = 0; i < sc->hiker_count; i++) {
+        const Hiker *h = &sc->hikers[i];
+
+        printf("\n [H%d] %s (%d명, %.1f km/h) — 시작: %s\n", h->id, h->name, h->group_size, h->speed_kmh,
+               sc->trails.nodes[h->start_node].name);
+        if (!time_is_set(h->depart_time_min)) {
+            printf("    결과: 주변에 불이 오지 않음 → 대피 불필요\n");
+        } else {
+            printf("    출발: %.0f분, 결과: %s", h->depart_time_min, hiker_status_korean(h->status));
+            if (time_is_set(h->finish_time_min)) {
+                printf(" (%.0f분)", h->finish_time_min);
+            }
+            printf("%s\n", hiker_is_at_risk(sc, h) ? "  ⚠ 위험" : "");
+        }
+        if (h->route.found) {
+            printf("    경로: ");
+            print_route_names(sc, &h->route);
+            printf("\n    소요 %.0f분, 최소 안전 여유 ", h->route.travel_time_min);
+            if (margin_is_unlimited(h->route.min_margin_min)) {
+                printf("제한 없음 (경로 근처에 불이 오지 않음)\n");
+            } else {
+                printf("%.0f분\n", h->route.min_margin_min);
+            }
+        } else {
+            printf("    경로: 안전한 대피 목적지까지 갈 수 있는 길이 없음 → 구조 요청\n");
+        }
+    }
+    printf("\n 요약: %d팀 %d명 중 대피 %d팀, 대피 완료 %d팀, 고립 %d팀, 위험 %d팀 %d명\n",
+           summary->hikers, summary->people, summary->evacuated, summary->safe, summary->trapped,
+           summary->at_risk_hikers, summary->at_risk_people);
+    printf("=================================================\n");
     fflush(stdout);
 }

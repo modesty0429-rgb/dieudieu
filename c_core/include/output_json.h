@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include "wf_types.h"
+#include "evac_alert.h"
 
 #define JSON_MAX_DEPTH 16
 
@@ -28,6 +29,15 @@ void json_number(JsonWriter *w, const char *key, double value);
 void json_int(JsonWriter *w, const char *key, int value);
 void json_bool(JsonWriter *w, const char *key, int value);
 
-int  write_summary_json(const char *path, const Scenario *sc, const SimResult *res, double elapsed_sec);
+/* 이번 실행에서 만든 결과 파일 종류 (summary.json 의 files 목록에 들어감) */
+typedef struct {
+    int evacuation;    /* evacuation.json */
+    int suppression;   /* suppression.json (5단계) */
+    int montecarlo;    /* burn_probability.csv, mc_summary.json (6단계) */
+} ResultFlags;
+
+int  write_summary_json(const char *path, const Scenario *sc, const SimResult *res,
+                        const ResultFlags *flags, double elapsed_sec);
+int  write_evacuation_json(const char *path, const Scenario *sc, const EvacSummary *summary);
 
 #endif /* OUTPUT_JSON_H */

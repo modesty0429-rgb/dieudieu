@@ -369,8 +369,8 @@ typedef struct {
 | `double compute_spread_rate(const Scenario*, int x, int y, int dir, const WeatherRecord*, SpreadFactors*)` | spread_rate.c | 한 셀에서 이웃 방향으로 불이 번지는 속도(m/분)를 `기본 속도 × 수분 감쇠 × (1 + 바람 계수 + 경사 계수)`로 계산한다. |
 | `int simulate_fire_step(Scenario*, FireState*, double t, double dt, const WeatherRecord*, Rng*, SimResult*, const SimOptions*)` | spread_sim.c | 연소 중인 모든 셀이 8방향으로 `속도×dt`만큼 불을 밀어내고, 누적 거리가 이웃까지의 거리를 넘으면 그 이웃에 불을 붙이며 도착 시각을 기록한다. 다 탄 셀은 전소로 바꾸고, 비화를 확률적으로 처리한다. |
 | `int run_monte_carlo(Scenario *sc, double *burn_prob, MCSummary *out)` | montecarlo.c | 시드와 기상 오차를 바꿔 같은 시나리오를 N번 반복하고, 셀별로 "탄 횟수 / N"을 연소 확률로 저장한다. |
-| `Route find_safest_route(const Scenario *sc, int start, double start_time, double speed_kmh)` | evac_route.c | 등산로 그래프에서 대피소·주차장까지 경로를 찾는다. 각 지점에서 "불 도착 시각 − 내가 지나는 시각"(안전 여유)을 계산해, 여유의 최솟값이 가장 큰 경로를 고른다(같으면 빠른 경로). |
-| `AlertLevel assess_alert_level(const Scenario*, const Hiker*, double now)` | evac_alert.c | 등산객 주변에 불이 도착하기까지 남은 시간을 설정값과 비교해 주의/대피 준비/즉시 대피/고립 단계를 판정한다. |
+| `int find_safest_route(const Scenario*, const DangerMap*, int start, double start_time, double speed_kmh, Route*)` | evac_route.c | 등산로 그래프에서 대피소·주차장까지 경로를 찾는다. 각 지점에서 "불 도착 시각 − 내가 지나는 시각"(안전 여유)을 계산해, 여유의 최솟값이 가장 큰 경로를 고른다(같으면 빠른 경로). |
+| `AlertLevel assess_alert_level(const Scenario*, const Hiker*, const DangerMap*, double now, double *remaining)` | evac_alert.c | 등산객 주변에 불이 도착하기까지 남은 시간을 설정값과 비교해 주의/대피 준비/즉시 대피/고립 단계를 판정한다. |
 | `int optimize_firebreak(Scenario *sc, int k, FirebreakPlan *plan)` | suppression.c | 기준 시뮬레이션에서 "이 셀을 막으면 뒤따라 타는 셀 수"(점화 트리의 하위 셀 수)가 큰 칸부터 방화선을 고른다. 몇 칸 고를 때마다 다시 시뮬레이션해 점수를 갱신한다. |
 | `int compare_strategies(Scenario *sc, StrategyComparison *out)` | suppression_eval.c | 아무것도 안 했을 때 / 방화선 / 헬기 / 둘 다 배치했을 때를 각각 시뮬레이션해 피해 면적과 위험 등산객 수를 표로 만든다. |
 
@@ -606,6 +606,8 @@ R(방향) = R0(연료) × η_M × (1 + φ_w + φ_s)
 - **비화**: 연소 중 셀마다 `p = spot_base_prob × spot_factor × (U/10)²` 확률로 불티 발생, 거리는 지수분포(평균 ∝ 풍속), 방향은 풍하 방향 ± 정규분포 오차. 시드 고정 난수로 재현 가능. [가정]
 
 ### 6-4. 대피 경로
+
+> 4단계 구현 시 추가: 위험 지도 2종(경보 500 m / 경로 60 m), 충분한 여유(30분) 상한, 불이 오는 대피소는 목적지에서 제외, 출발 시점에 여유 < 0 이면 고립 — 자세한 내용은 `docs/model.md` 10장
 - 보행 속도: **Tobler 보행 함수** `v = 6·e^(−3.5·|기울기+0.05|)` km/h를 등산객 평지 속도에 비례 조정. [근거: Tobler 1993]
 - 안전 여유(지점) = 그 셀의 불 도착 시각 − 등산객 통과 시각. 경로 여유 = 경로 위 최솟값.
 - 알고리즘: 직접 만든 우선순위 큐로 **다익스트라 변형**. 라벨 = (경로 최소 여유, 도착 시각), 여유가 큰 것 우선·같으면 빠른 것 우선. 여유가 음수인 간선은 통과 불가.
