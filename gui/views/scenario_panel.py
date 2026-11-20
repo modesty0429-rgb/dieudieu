@@ -6,6 +6,7 @@
     - 계절 프리셋
     - 기상: 시나리오의 기상 파일 / 직접 입력(풍속·풍향·습도·기온 슬라이더)
     - 시뮬레이션 시간, 난수 시드, 비화 사용
+    - 진화 자원 (방화선 칸 수, 완성 시각, 헬기 대수, 출동 간격)과 전략 비교 포함 여부
     - 실행 / 중지 버튼
 
 "실행"을 누르면 바꾼 값을 ScenarioOverrides 로 모아 run_requested 시그널을 보낸다.
@@ -80,6 +81,7 @@ class ScenarioPanel(QScrollArea):
         layout.addWidget(self._build_ignition_group())
         layout.addWidget(self._build_weather_group())
         layout.addWidget(self._build_simulation_group())
+        layout.addWidget(self._build_suppression_group())
         layout.addWidget(self._build_run_buttons())
         layout.addStretch(1)
         self.setWidget(content)
@@ -180,6 +182,43 @@ class ScenarioPanel(QScrollArea):
         form.addRow(self.spotting)
         return group
 
+    def _build_suppression_group(self) -> QGroupBox:
+        group = QGroupBox("진화 자원")
+        form = QFormLayout(group)
+        self.include_suppression = QCheckBox("진화 전략 비교 포함 (몇 초 더 걸림)")
+        self.include_suppression.setChecked(True)
+        self.firebreak_cells = QSpinBox()
+        self.firebreak_cells.setRange(0, 500)
+        self.firebreak_cells.setSingleStep(5)
+        self.firebreak_cells.setSuffix(" 칸")
+        self.firebreak_ready = QSpinBox()
+        self.firebreak_ready.setRange(0, 600)
+        self.firebreak_ready.setSingleStep(10)
+        self.firebreak_ready.setSuffix(" 분")
+        self.helicopters = QSpinBox()
+        self.helicopters.setRange(0, 20)
+        self.helicopters.setSuffix(" 대")
+        self.heli_interval = QSpinBox()
+        self.heli_interval.setRange(5, 240)
+        self.heli_interval.setSingleStep(5)
+        self.heli_interval.setSuffix(" 분")
+        form.addRow(self.include_suppression)
+        form.addRow("방화선 길이", self.firebreak_cells)
+        form.addRow("방화선 완성", self.firebreak_ready)
+        form.addRow("헬기", self.helicopters)
+        form.addRow("헬기 출동 간격", self.heli_interval)
+        self.include_suppression.toggled.connect(self._update_suppression_enabled)
+        return group
+
+    def _update_suppression_enabled(self) -> None:
+        enabled = self.include_suppression.isChecked()
+        for widget in (self.firebreak_cells, self.firebreak_ready, self.helicopters, self.heli_interval):
+            widget.setEnabled(enabled)
+
+    def run_mode(self) -> str:
+        """엔진 실행 모드: 진화 전략 포함이면 optimize, 아니면 evac (확산 + 대피)"""
+        return "optimize" if self.include_suppression.isChecked() else "evac"
+
     def _build_run_buttons(self) -> QWidget:
         box = QWidget()
         layout = QHBoxLayout(box)
@@ -233,6 +272,10 @@ class ScenarioPanel(QScrollArea):
         self.wind_dir.set_value(ini.getfloat("weather", "fixed_wind_dir_deg", fallback=270))
         self.humidity.set_value(ini.getfloat("weather", "fixed_rh_pct", fallback=25))
         self.temperature.set_value(ini.getfloat("weather", "fixed_temp_c", fallback=18))
+        self.firebreak_cells.setValue(ini.getint("suppression", "firebreak_cells", fallback=40))
+        self.firebreak_ready.setValue(int(ini.getfloat("suppression", "firebreak_ready_min", fallback=60)))
+        self.helicopters.setValue(ini.getint("suppression", "helicopters", fallback=2))
+        self.heli_interval.setValue(int(ini.getfloat("suppression", "heli_interval_min", fallback=30)))
         for key, value in ini.items("ignition") if ini.has_section("ignition") else []:
             if key.startswith("point"):
                 parts = [p.strip() for p in value.split(",")]
@@ -255,6 +298,10 @@ class ScenarioPanel(QScrollArea):
             o.set("weather", "fixed_temp_c", self.temperature.value())
         else:
             o.set("weather", "mode", "file")
+        o.set("suppression", "firebreak_cells", self.firebreak_cells.value())
+        o.set("suppression", "firebreak_ready_min", self.firebreak_ready.value())
+        o.set("suppression", "helicopters", self.helicopters.value())
+        o.set("suppression", "heli_interval_min", self.heli_interval.value())
         preset = self._current_preset()
         if preset is not None:
             o.set("moisture", "live_moisture_factor", preset.live_moisture_factor)

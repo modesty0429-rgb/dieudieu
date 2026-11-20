@@ -345,12 +345,20 @@ typedef struct {
     double rh_pct;
 } WeatherOffset;
 
+/* 헬기 살수 한 번 */
+typedef struct {
+    double time_min;
+    int    x, y;       /* 살수 중심 셀 */
+} HeliDrop;
+
 /* 시뮬레이션 실행 옵션 */
 typedef struct {
     WeatherOffset offset;          /* 기상 오차 */
     int           record_events;   /* 1이면 FireEvent 기록 */
     int           quiet;           /* 1이면 진행 로그 생략 (반복 실험용) */
     double        map_every_min;   /* 0보다 크면 이 간격(분)마다 콘솔에 화재 지도 출력 */
+    int           use_helicopters; /* 1이면 시뮬레이션 도중 헬기 살수 (5단계) */
+    const double *heli_guide;      /* 헬기 목표를 고를 때 쓰는 셀별 가치 (NULL 가능) */
 } SimOptions;
 
 /* 시뮬레이션 한 번의 결과 */
@@ -367,6 +375,9 @@ typedef struct {
     double     max_spread_rate;    /* 전체에서 가장 빠른 확산 속도 (m/분) */
     double     end_time_min;       /* 시뮬레이션이 끝난 시각 */
     int        fire_out;           /* 시간 안에 불이 완전히 꺼졌으면 1 */
+    HeliDrop  *drops;              /* 헬기 살수 기록 (동적 배열) */
+    int        drop_count;
+    int        drop_capacity;
 } SimResult;
 
 #endif /* WF_TYPES_H */

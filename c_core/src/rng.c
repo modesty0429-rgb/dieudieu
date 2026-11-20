@@ -26,6 +26,24 @@ void rng_seed(Rng *rng, unsigned int seed)
     }
 }
 
+/*
+ * "사건마다 정해진 난수": 시드와 사건 번호 두 개(a, b)를 섞어 난수 생성기를 초기화한다.
+ * 예) a = 셀 번호, b = 시각 → "이 셀이 이 시각에 비화를 일으키는가"가 항상 같은 난수로 정해진다.
+ *
+ * 왜 필요한가 (공통 난수, common random numbers):
+ *   난수 하나를 모든 셀이 차례로 꺼내 쓰면, 방화선 때문에 한 셀만 덜 타도 그 뒤의 모든 난수가
+ *   밀려서 전혀 다른 비화가 생긴다. 그러면 전략 비교에서 "방화선 효과"보다 "운"의 차이가 커진다.
+ *   사건마다 난수를 고정하면 같은 셀·같은 시각의 비화는 어느 전략에서나 같아 공정하게 비교된다.
+ */
+void rng_seed_for_event(Rng *rng, unsigned int seed, unsigned int a, unsigned int b)
+{
+    uint32_t mixed = (uint32_t)seed;
+    mixed ^= (uint32_t)a * 0x85EBCA6Bu;      /* 서로 다른 큰 홀수를 곱해 섞는다 */
+    mixed ^= (uint32_t)b * 0xC2B2AE35u;
+    mixed ^= mixed >> 16;
+    rng_seed(rng, (unsigned int)mixed);
+}
+
 /* 다음 32비트 난수 */
 uint32_t rng_next_u32(Rng *rng)
 {

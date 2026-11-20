@@ -6,7 +6,7 @@
 - **C 계산 엔진** (`c_core/`, `wildfire.exe`): 지도 읽기, 확산 시뮬레이션, 대피 경로, 진화 전략 등 모든 계산
 - **Python GUI** (`gui/`): 화면, 애니메이션, 기상 API 다운로드, 가상 지형 생성
 
-> 현재 진행 상황: **4단계 완료** (대피 경로 + 경보)
+> 현재 진행 상황: **5단계 완료** (진화 전략 최적화 + 전후 비교)
 > 전체 설계는 [`docs/PROJECT_SPECIFICATION.md`](docs/PROJECT_SPECIFICATION.md), 단계별 기록은 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
 ---
@@ -105,7 +105,8 @@ bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode printmap
 | `--mode printmap` | 지도·요약 출력 |
 | `--mode run` | 산불 확산 시뮬레이션 + 결과 저장 |
 | `--mode evac` | 확산 시뮬레이션 + 등산객 대피 경로·경보 (`evacuation.json` 추가) |
-| `--mode optimize / mc / all` | 5단계 이후에 구현 |
+| `--mode optimize` (= `all`) | evac + 방화선 배치 최적화 + 진화 전략 4가지 비교 (`suppression.json`, 전략별 격자 CSV 추가) |
+| `--mode mc` | 6단계에서 구현 |
 | `--map-every <분>` | run 모드에서 이 간격마다 콘솔에 화재 지도 출력 |
 | `--out <폴더>` | 결과 폴더 지정 |
 | `--seed <정수>` | 난수 시드 지정 |
@@ -154,9 +155,20 @@ bin\wildfire.exe ..\data\scenarios\spring_danger_valley.ini --mode evac
 
 등산객 팀마다 출발 시각, 추천 경로(예: `주봉 → 전망바위 → 계곡대피소`), 소요 시간, 최소 안전 여유, 결과(대피 완료 / 고립)가 출력되고
 `evacuation.json` 에 1분 간격 위치·경보 단계·남은 시간이 저장됩니다.
-`spring_danger_valley.ini` 는 신고가 늦어 2팀이 고립되는 위험 사례이고, `[evacuation] prepare_min` 을 120으로 바꾸면 모두 대피에 성공합니다.
+`spring_danger_valley.ini` 는 산불 발견·신고가 100분 늦어 2팀이 고립되는 위험 사례입니다.
+`[evacuation] notify_delay_min` 을 60으로 줄이면 고립 팀이 없어집니다. (`docs/model.md` 10-6)
 
-### 4-4. 오류 메시지 확인 (일부러 틀린 시나리오)
+### 4-4. 진화 전략 (optimize)
+
+```bat
+bin\wildfire.exe ..\data\scenarios\spring_danger_valley.ini --mode optimize
+```
+
+방화선 K칸(`[suppression] firebreak_cells`)을 탐욕법으로 배치하는 과정(`방화선 1단계 ...`)이 출력됩니다.
+이어서 "대응 없음 / 방화선 / 헬기 / 방화선 + 헬기"의 피해 면적, 감소율, 등산로 소실, 위험 등산객 수를 비교한 표가 나옵니다.
+결과 폴더에는 `suppression.json` 과 전략별 `suppression_<전략>_arrival.csv`, `_burnout.csv` 가 저장됩니다.
+
+### 4-5. 오류 메시지 확인 (일부러 틀린 시나리오)
 
 ```bat
 bin\wildfire.exe ..\data\scenarios\tests\bad_values.ini --mode printmap
@@ -188,6 +200,8 @@ python gui/main.py
 | 레이어 체크박스 | 연료 색, 등고선, 불, 도착 등시선(60분 간격), 등산로, 등산객 켜기/끄기 |
 | 재생 컨트롤 | ▶ 재생 / ⏸ 일시정지, 타임라인 슬라이더로 원하는 시각으로 이동, 재생 속도 |
 | 오른쪽 "대피 안내" | 팀별 경보 단계(색 배지), 상태, 남은 시간, 최소 안전 여유, 목적지. 행을 고르면 지도에서 그 팀 경로가 굵게 표시되고 아래에 상세 경로 표시 |
+| "진화 전략" 탭 | 전략 4가지 비교표와, 고른 두 전략의 불 모습을 나란히 재생하는 지도 2개(확대·이동이 함께 움직임). 방화선(흰 칸), 헬기 살수(하늘색 원) 표시 |
+| 왼쪽 "진화 자원" | 방화선 칸 수·완성 시각, 헬기 대수·출동 간격. "진화 전략 비교 포함"을 끄면 확산 + 대피만 계산 (더 빠름) |
 | "엔진 로그" 탭 | C 엔진 출력 전체 (콘솔 지도·통계 표 포함). 엔진이 오류로 끝나면 자동으로 이 탭으로 이동 |
 | 파일 메뉴 | 예전 결과(`summary.json`) 불러오기, 결과 폴더 열기 |
 
@@ -224,6 +238,8 @@ python tools/count_lines.py
 | Horn 경사 계산 | `map_io.c` `compute_slope_aspect` | Horn, B.K.P. (1981). Hill shading and the reflectance map. *Proc. IEEE* 69(1) |
 | Bresenham 직선 | `trail_io.c` `add_line_cells` | Bresenham, J.E. (1965). Algorithm for computer control of a digital plotter. *IBM Systems Journal* 4(1) |
 | 다익스트라 (변형) + 이진 힙 | `evac_route.c`, `pqueue.c` | Dijkstra, E.W. (1959). *Numerische Mathematik* 1 |
+| 탐욕법 + 점화 트리 하위 가치 | `suppression.c` | 일반적인 탐욕 알고리즘·트리 누적 합 (자료구조 교과서) |
+| 공통 난수 (사건별 난수) | `rng.c` `rng_seed_for_event` | 시뮬레이션 비교 실험의 분산 감소 기법 (common random numbers) |
 | Tobler 보행 함수 | `hiker.c` | Tobler, W. (1993). NCGIA Technical Report 93-1 |
 | 너비 우선 탐색(BFS) | `trail_io.c` `check_exits_reachable` | 일반적인 그래프 알고리즘 (자료구조 교과서) |
 | Rothermel 확산 모델 (단순화) | `spread_rate.c` | Rothermel, R.C. (1972). USDA Forest Service INT-115 |

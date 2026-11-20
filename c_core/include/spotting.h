@@ -10,6 +10,6 @@
 #include "rng.h"
 
 int try_spotting(Scenario *sc, FireState *state, int source_index, double t, double dt,
-                 const WeatherRecord *weather, Rng *rng);
+                 const WeatherRecord *weather);
 
 #endif /* SPOTTING_H */

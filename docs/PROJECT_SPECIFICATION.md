@@ -371,8 +371,8 @@ typedef struct {
 | `int run_monte_carlo(Scenario *sc, double *burn_prob, MCSummary *out)` | montecarlo.c | 시드와 기상 오차를 바꿔 같은 시나리오를 N번 반복하고, 셀별로 "탄 횟수 / N"을 연소 확률로 저장한다. |
 | `int find_safest_route(const Scenario*, const DangerMap*, int start, double start_time, double speed_kmh, Route*)` | evac_route.c | 등산로 그래프에서 대피소·주차장까지 경로를 찾는다. 각 지점에서 "불 도착 시각 − 내가 지나는 시각"(안전 여유)을 계산해, 여유의 최솟값이 가장 큰 경로를 고른다(같으면 빠른 경로). |
 | `AlertLevel assess_alert_level(const Scenario*, const Hiker*, const DangerMap*, double now, double *remaining)` | evac_alert.c | 등산객 주변에 불이 도착하기까지 남은 시간을 설정값과 비교해 주의/대피 준비/즉시 대피/고립 단계를 판정한다. |
-| `int optimize_firebreak(Scenario *sc, int k, FirebreakPlan *plan)` | suppression.c | 기준 시뮬레이션에서 "이 셀을 막으면 뒤따라 타는 셀 수"(점화 트리의 하위 셀 수)가 큰 칸부터 방화선을 고른다. 몇 칸 고를 때마다 다시 시뮬레이션해 점수를 갱신한다. |
-| `int compare_strategies(Scenario *sc, StrategyComparison *out)` | suppression_eval.c | 아무것도 안 했을 때 / 방화선 / 헬기 / 둘 다 배치했을 때를 각각 시뮬레이션해 피해 면적과 위험 등산객 수를 표로 만든다. |
+| `int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, FirebreakPlan *plan)` | suppression.c | 기준 시뮬레이션에서 "이 셀을 막으면 뒤따라 타는 셀 수"(점화 트리의 하위 셀 수)가 큰 칸부터 방화선을 고른다. 몇 칸 고를 때마다 다시 시뮬레이션해 점수를 갱신한다. |
+| `int compare_strategies(Scenario *sc, unsigned int seed, SuppressionReport *report)` | suppression_eval.c | 아무것도 안 했을 때 / 방화선 / 헬기 / 둘 다 배치했을 때를 각각 시뮬레이션해 피해 면적과 위험 등산객 수를 표로 만든다. |
 
 ### 4-2. 그 외 함수 (모듈별)
 
@@ -614,6 +614,8 @@ R(방향) = R0(연료) × η_M × (1 + φ_w + φ_s)
 - 한계(문서화): 도착 시각이 경로에 따라 달라지므로 엄밀한 최적은 아님 → 예제로 검증.
 
 ### 6-5. 진화 전략
+
+> 5단계 구현 시 변경: 셀 단위가 아니라 5칸 방화선 조각 단위로 배치, 상위 3개 후보는 실제 시뮬레이션으로 비교, 비화를 사건별 난수(공통 난수)로 변경 — 자세한 내용은 `docs/model.md` 9·11장
 - **방화선**: 기준 시뮬레이션에서 각 셀의 `parent_index`로 "점화 트리"를 만들고, 하위 셀 수(= 막으면 막을 수 있는 셀 수의 추정)가 큰 칸 중 `도착 시각 ≥ 방화선 완성 시각`인 칸을 골라 한 번에 5칸씩 추가 → 재시뮬레이션 → 반복(K칸까지). 등산로 셀은 가중치를 높게. [탐욕법]
 - **헬기**: `heli_interval_min`마다 헬기 M대가 각각 현재 화선 중 점수가 가장 높은 지점에 반경 r칸 살수(`wet_until` 갱신). [탐욕법]
 - 비교 지표: 최종 피해 면적(ha), 위험 등산객 수(경로 여유 < 0 또는 고립), 소실된 등산로 길이(km).

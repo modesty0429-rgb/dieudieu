@@ -29,6 +29,7 @@
 #include "fuel_moisture.h"
 #include "weather.h"
 #include "console_view.h"
+#include "suppression.h"
 #include "grid.h"
 #include "util.h"
 #include "log.h"
@@ -53,12 +54,16 @@ void sim_result_init(SimResult *res)
     res->max_spread_rate = 0.0;
     res->end_time_min = 0.0;
     res->fire_out = 0;
+    res->drops = NULL;
+    res->drop_count = 0;
+    res->drop_capacity = 0;
 }
 
 void sim_result_free(SimResult *res)
 {
     free(res->steps);
     free(res->events);
+    free(res->drops);
     sim_result_init(res);
 }
 
@@ -71,6 +76,8 @@ void sim_options_default(SimOptions *opts)
     opts->record_events = 1;
     opts->quiet = 0;
     opts->map_every_min = 0.0;
+    opts->use_helicopters = 0;
+    opts->heli_guide = NULL;
 }
 
 int fire_state_init(FireState *state)
@@ -79,6 +86,7 @@ int fire_state_init(FireState *state)
     intarray_init(&state->burning);
     intarray_init(&state->scheduled);
     state->ignited_count = 0;
+    state->seed = 0;
     state->dead_moisture = 0.0;
     state->interval_max_rate = 0.0;
     return 1;
@@ -273,6 +281,9 @@ static int spread_from_cell(Scenario *sc, FireState *state, int index, double t,
     int   still_active = 0;
     int   dir;
 
+    if (cell->wet_until > t) {
+        return 1;   /* 헬기 살수로 젖은 곳의 불은 효과가 끝날 때까지 번지지 못함 (화선에는 남김) */
+    }
     for (dir = 0; dir < 8; dir++) {
         int    nx = x + grid_neighbor_dx(dir);
         int    ny = y + grid_neighbor_dy(dir);
@@ -324,7 +335,7 @@ static int spread_from_cell(Scenario *sc, FireState *state, int index, double t,
  * 성공 1, 메모리 부족 0
  */
 int simulate_fire_step(Scenario *sc, FireState *state, double t, double dt,
-                       const WeatherRecord *weather, Rng *rng, SimResult *res, const SimOptions *opts)
+                       const WeatherRecord *weather, SimResult *res, const SimOptions *opts)
 {
     int i;
     int kept;
@@ -346,7 +357,7 @@ int simulate_fire_step(Scenario *sc, FireState *state, double t, double dt,
 
     /* 2) 비화 */
     for (i = 0; i < state->burning.count; i++) {
-        int spotted = try_spotting(sc, state, state->burning.data[i], t, dt, weather, rng);
+        int spotted = try_spotting(sc, state, state->burning.data[i], t, dt, weather);
         if (spotted < 0) {
             return 0;
         }
@@ -420,18 +431,18 @@ static int record_stats(const Scenario *sc, FireState *state, double t,
 int run_fire_simulation(Scenario *sc, const SimOptions *opts, unsigned int seed, SimResult *res)
 {
     FireState     state;
-    Rng           rng;
     WeatherRecord weather;
     double        dt = sc->sim.time_step_min;
     double        next_output = sc->sim.output_interval_min;
     double        next_map = opts->map_every_min;
+    double        next_drop = first_helicopter_time(sc);
     double        t = 0.0;
     long          step = 0;
     int           ok = 1;
 
     grid_reset_fire_state(&sc->grid);
     fire_state_init(&state);
-    rng_seed(&rng, seed);
+    state.seed = seed;
     init_fuel_moisture(sc, &state.dead_moisture);
 
     get_weather_at(sc, 0.0, &opts->offset, &weather);
@@ -444,9 +455,15 @@ int run_fire_simulation(Scenario *sc, const SimOptions *opts, unsigned int seed,
         get_weather_at(sc, t, &opts->offset, &weather);
         update_fuel_moisture(sc, &state.dead_moisture, &weather, dt);
 
+        /* (5단계) 헬기 출동 간격마다 살수 지점을 정해 물을 뿌린다 */
+        if (opts->use_helicopters && sc->supp.helicopters > 0 && t >= next_drop - TIME_EPSILON) {
+            ok = plan_helicopter_drops(sc, &state, t, opts->heli_guide, res);
+            next_drop += sc->supp.heli_interval_min;
+        }
+
         /* 2) 발화 지점 예약 → 3) 한 단계 진행 */
-        ok = schedule_ignition_points(sc, &state, t, dt) &&
-             simulate_fire_step(sc, &state, t, dt, &weather, &rng, res, opts);
+        ok = ok && schedule_ignition_points(sc, &state, t, dt) &&
+             simulate_fire_step(sc, &state, t, dt, &weather, res, opts);
 
         /* 시각은 더하기를 반복하지 않고 단계 번호로 계산 (실수 오차 누적 방지) */
         step++;

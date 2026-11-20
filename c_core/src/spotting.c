@@ -11,7 +11,8 @@
  *   3) 날아가는 방향 = 바람이 불어 가는 방향 ± 정규 분포(표준편차 15°)
  *   4) 떨어진 곳에서 불이 붙을 확률 = 그 셀의 수분 감쇠 η_M (젖은 연료에는 잘 안 붙음)
  *
- * 난수는 시드를 고정한 Rng를 쓰므로 같은 시드면 항상 같은 곳에 비화가 생긴다.
+ * 난수는 (시드, 셀 번호, 시각)으로 정해지는 "사건별 난수"를 쓴다. (rng.c rng_seed_for_event)
+ * 같은 시드면 항상 같은 곳에 비화가 생기고, 진화 전략을 비교할 때도 같은 셀·같은 시각의 비화는 같다.
  */
 #include <math.h>
 
@@ -30,8 +31,10 @@
  * 반환값: 비화로 새 불이 예약되면 1, 아니면 0
  */
 int try_spotting(Scenario *sc, FireState *state, int source_index, double t, double dt,
-                 const WeatherRecord *weather, Rng *rng)
+                 const WeatherRecord *weather)
 {
+    Rng              event_rng;
+    Rng             *rng = &event_rng;
     const Grid      *grid = &sc->grid;
     int              sx = source_index % grid->width;
     int              sy = source_index / grid->width;
@@ -44,6 +47,9 @@ int try_spotting(Scenario *sc, FireState *state, int source_index, double t, dou
     if (!sc->sim.spotting_enabled || fm == NULL || fm->spot_factor <= 0.0 || wind < SPOT_MIN_WIND_MS) {
         return 0;
     }
+
+    /* 이 셀·이 시각(0.1분 단위)에만 쓰는 난수 */
+    rng_seed_for_event(rng, state->seed, (unsigned int)source_index, (unsigned int)round_to_int(t * 10.0));
 
     /* 1) 발생 여부 */
     probability = sc->sim.spot_base_prob * fm->spot_factor * (wind / 10.0) * (wind / 10.0) * dt;

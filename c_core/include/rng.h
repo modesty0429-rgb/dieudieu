@@ -14,6 +14,7 @@ typedef struct {
 } Rng;
 
 void     rng_seed(Rng *rng, unsigned int seed);
+void     rng_seed_for_event(Rng *rng, unsigned int seed, unsigned int a, unsigned int b);
 uint32_t rng_next_u32(Rng *rng);
 double   rng_uniform(Rng *rng);
 double   rng_normal(Rng *rng, double mean, double sd);

@@ -4,7 +4,7 @@
     ┌─────────────────────────────────────────────────────────┐
     │ 엔진 상태: [INFO] ...                       [■■■■□□ 60%] │  ← C 엔진 stdout 실시간 표시
     ├──────────────┬──────────────────────────────────────────┤
-    │ 시나리오      │  [지도] [엔진 로그]            │ 대피 안내   │
+    │ 시나리오      │  [지도] [진화 전략] [엔진 로그] │ 대피 안내   │
     │ 설정 패널     │   지도 (MapView)               │ (오른쪽     │
     │ (왼쪽 도킹)   │   ▶ ━━━━●━━━ T+120분 (15:00)  │  도킹)      │
     └──────────────┴───────────────────────────────┴────────────┘
@@ -31,6 +31,7 @@ from views.evacuation_view import EvacuationView
 from views.log_console import LogConsole
 from views.map_view import MapView
 from views.playback_bar import PlaybackBar
+from views.suppression_view import SuppressionView
 from views.scenario_panel import ScenarioPanel
 
 
@@ -93,7 +94,9 @@ class MainWindow(QMainWindow):
         map_layout.addWidget(self.playback)
 
         self.tabs = QTabWidget()
+        self.suppression_view = SuppressionView()
         self.tabs.addTab(map_tab, "🗺 지도")
+        self.tabs.addTab(self.suppression_view, "🚒 진화 전략")
         self.tabs.addTab(self.log_console, "📄 엔진 로그")
 
         central = QWidget()
@@ -141,6 +144,7 @@ class MainWindow(QMainWindow):
         self.map_view.cell_clicked.connect(self.panel.set_ignition)
         self.playback.time_changed.connect(self.map_view.set_time)
         self.playback.time_changed.connect(self.evacuation_view.update_time)
+        self.playback.time_changed.connect(self.suppression_view.update_time)
         self.evacuation_view.hiker_selected.connect(self.map_view.highlight_hiker)
         self.runner.line_received.connect(self._on_engine_line)
         self.runner.finished.connect(self._on_engine_finished)
@@ -167,6 +171,7 @@ class MainWindow(QMainWindow):
         self.result = None
         self.map_view.set_map(preview)
         self.evacuation_view.set_data(None, preview)
+        self.suppression_view.set_data(None, None)
         self.panel.set_map_size(preview.width, preview.height)
         self._on_ignition_changed(self.panel.ignition_x.value(), self.panel.ignition_y.value())
         self.playback.set_range(0.0, preview.start_time)
@@ -183,6 +188,7 @@ class MainWindow(QMainWindow):
         self.result = result
         self.map_view.set_result(result)
         self.evacuation_view.set_data(result.evacuation, result.map)
+        self.suppression_view.set_data(result.suppression, result.map)
         self.panel.set_map_size(result.map.width, result.map.height)
         self.playback.set_range(result.end_time, result.map.start_time)   # 시각 0 으로 → 표 갱신
         r = result.summary["result"]
@@ -204,7 +210,7 @@ class MainWindow(QMainWindow):
             return
         self.log_console.append_gui_message(f"시나리오 저장: {scenario_path}")
         self.playback.pause()
-        if self.runner.start(scenario_path, "evac"):     # 확산 + 대피 안내
+        if self.runner.start(scenario_path, self.panel.run_mode()):   # evac 또는 optimize
             self.panel.set_running(True)
             self.status_bar.progress.setValue(0)
 

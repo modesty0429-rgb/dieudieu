@@ -13,6 +13,7 @@
 #include "output_json.h"
 #include "evac_alert.h"
 #include "evac_route.h"
+#include "suppression.h"
 #include "wf_config.h"
 #include "util.h"
 #include "log.h"
@@ -246,6 +247,9 @@ int write_summary_json(const char *path, const Scenario *sc, const SimResult *re
     if (flags->evacuation) {
         json_string(&w, "evacuation", "evacuation.json");
     }
+    if (flags->suppression) {
+        json_string(&w, "suppression", "suppression.json");
+    }
     json_end_object(&w);
 
     json_end_object(&w);
@@ -371,6 +375,107 @@ int write_evacuation_json(const char *path, const Scenario *sc, const EvacSummar
     json_begin_array(&w, "hikers");
     for (i = 0; i < sc->hiker_count; i++) {
         write_hiker_json(&w, sc, &sc->hikers[i]);
+    }
+    json_end_array(&w);
+
+    json_end_object(&w);
+    if (!json_close(&w)) {
+        log_error("JSON 저장 중 오류: %s", path);
+        return 0;
+    }
+    return 1;
+}
+
+/* ================================================================
+ * 진화 전략 결과 저장
+ * ================================================================ */
+
+/* 셀 번호 목록을 [[x, y], ...] 배열로 쓴다. */
+static void write_cell_list(JsonWriter *w, const char *key, const IntArray *cells, int width)
+{
+    int i;
+    json_begin_array(w, key);
+    for (i = 0; i < cells->count; i++) {
+        begin_item(w, NULL);
+        fprintf(w->fp, "[%d, %d]", cells->data[i] % width, cells->data[i] / width);
+    }
+    json_end_array(w);
+}
+
+/*
+ * suppression.json: 진화 자원 설정, 방화선 셀과 최적화 단계 기록, 전략 4가지 비교 결과
+ * (전략별 도착·전소 격자 파일 이름, 헬기 살수 기록 포함)
+ */
+int write_suppression_json(const char *path, const Scenario *sc, const SuppressionReport *report)
+{
+    const FirebreakPlan *fb = &report->firebreak;
+    JsonWriter           w;
+    char                 name[WF_PATH_MAX];
+    int                  i, k;
+
+    if (!json_open(&w, path)) {
+        return 0;
+    }
+    json_begin_object(&w, NULL);
+
+    json_begin_object(&w, "settings");
+    json_int(&w, "firebreak_cells", sc->supp.firebreak_cells);
+    json_number(&w, "firebreak_ready_min", sc->supp.firebreak_ready_min);
+    json_int(&w, "helicopters", sc->supp.helicopters);
+    json_int(&w, "heli_radius_cells", sc->supp.heli_radius_cells);
+    json_number(&w, "heli_interval_min", sc->supp.heli_interval_min);
+    json_number(&w, "heli_effect_min", sc->supp.heli_effect_min);
+    json_number(&w, "first_drop_min", first_helicopter_time(sc));
+    json_number(&w, "trail_cell_weight", TRAIL_CELL_WEIGHT);
+    json_end_object(&w);
+
+    json_begin_object(&w, "firebreak");
+    json_int(&w, "cell_count", fb->cells.count);
+    json_number(&w, "damage_without", fb->damage_without);
+    json_number(&w, "damage_with", fb->damage_with);
+    write_cell_list(&w, "cells", &fb->cells, sc->grid.width);
+    json_begin_array(&w, "steps");
+    for (i = 0; i < fb->step_count; i++) {
+        const FirebreakStep *step = &fb->steps[i];
+        json_begin_object(&w, NULL);
+        json_int(&w, "center_x", step->center_x);
+        json_int(&w, "center_y", step->center_y);
+        json_int(&w, "cells_added", step->cells_added);
+        json_number(&w, "score", step->score);
+        json_number(&w, "damage_before", step->damage_before);
+        json_number(&w, "damage_after", step->damage_after);
+        json_end_object(&w);
+    }
+    json_end_array(&w);
+    json_end_object(&w);
+
+    json_begin_array(&w, "strategies");
+    for (i = 0; i < STRATEGY_COUNT; i++) {
+        const StrategyResult *s = &report->strategies[i];
+        json_begin_object(&w, NULL);
+        json_string(&w, "key", s->key);
+        json_string(&w, "name", s->name);
+        json_bool(&w, "use_firebreak", s->use_firebreak);
+        json_bool(&w, "use_helicopters", s->use_helicopters);
+        json_number(&w, "burned_area_ha", s->burned_area_ha);
+        json_int(&w, "burned_cells", s->burned_cells);
+        json_number(&w, "reduction_pct", s->reduction_pct);
+        json_number(&w, "trail_burned_km", s->trail_burned_km);
+        json_int(&w, "spot_fires", s->spot_fires);
+        json_int(&w, "at_risk_hikers", s->evac.at_risk_hikers);
+        json_int(&w, "at_risk_people", s->evac.at_risk_people);
+        json_int(&w, "trapped_hikers", s->evac.trapped);
+        snprintf(name, sizeof(name), "suppression_%s_arrival.csv", s->key);
+        json_string(&w, "arrival_file", name);
+        snprintf(name, sizeof(name), "suppression_%s_burnout.csv", s->key);
+        json_string(&w, "burnout_file", name);
+        json_begin_array(&w, "drops");          /* [시각, x, y] */
+        for (k = 0; k < s->drop_count; k++) {
+            begin_item(&w, NULL);
+            fprintf(w.fp, "[%.1f, %d, %d]", s->drops[k].time_min, s->drops[k].x, s->drops[k].y);
+        }
+        json_end_array(&w);
+        json_end_object(&w);
     }
     json_end_array(&w);
 

@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include "wf_types.h"
 #include "evac_alert.h"
+#include "suppression_eval.h"
 
 #define JSON_MAX_DEPTH 16
 
@@ -39,5 +40,6 @@ typedef struct {
 int  write_summary_json(const char *path, const Scenario *sc, const SimResult *res,
                         const ResultFlags *flags, double elapsed_sec);
 int  write_evacuation_json(const char *path, const Scenario *sc, const EvacSummary *summary);
+int  write_suppression_json(const char *path, const Scenario *sc, const SuppressionReport *report);
 
 #endif /* OUTPUT_JSON_H */

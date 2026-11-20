@@ -149,6 +149,61 @@ def load_evacuation(path: Path) -> EvacuationData:
 
 
 @dataclass
+class StrategyResult:
+    """진화 전략 하나의 결과 (suppression.json 의 strategies 항목)"""
+    key: str
+    name: str
+    use_firebreak: bool
+    use_helicopters: bool
+    burned_area_ha: float
+    reduction_pct: float
+    trail_burned_km: float
+    spot_fires: int
+    at_risk_hikers: int
+    at_risk_people: int
+    trapped_hikers: int
+    arrival: np.ndarray
+    burnout: np.ndarray
+    drops: np.ndarray            # [시각, x, y] × 살수 횟수
+
+
+@dataclass
+class SuppressionData:
+    settings: dict
+    firebreak_cells: list[tuple[int, int]]
+    firebreak_steps: list[dict]
+    strategies: list[StrategyResult]
+
+    def by_key(self, key: str) -> StrategyResult | None:
+        return next((s for s in self.strategies if s.key == key), None)
+
+
+def load_suppression(path: Path) -> SuppressionData:
+    """suppression.json 과 전략별 도착·전소 격자 CSV 읽기"""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    folder = path.parent
+    strategies = []
+    for s in data["strategies"]:
+        strategies.append(StrategyResult(
+            key=s["key"], name=s["name"], use_firebreak=s["use_firebreak"],
+            use_helicopters=s["use_helicopters"], burned_area_ha=s["burned_area_ha"],
+            reduction_pct=s["reduction_pct"], trail_burned_km=s["trail_burned_km"],
+            spot_fires=s["spot_fires"], at_risk_hikers=s["at_risk_hikers"],
+            at_risk_people=s["at_risk_people"], trapped_hikers=s["trapped_hikers"],
+            arrival=read_grid_csv(folder / s["arrival_file"]),
+            burnout=read_grid_csv(folder / s["burnout_file"]),
+            drops=np.asarray(s["drops"], dtype=np.float64).reshape(-1, 3),
+        ))
+    firebreak = data["firebreak"]
+    return SuppressionData(
+        settings=data["settings"],
+        firebreak_cells=[(int(x), int(y)) for x, y in firebreak["cells"]],
+        firebreak_steps=firebreak["steps"],
+        strategies=strategies,
+    )
+
+
+@dataclass
 class SimulationResult:
     """시뮬레이션 결과 (summary.json 과 CSV 파일들)"""
     map: MapData
@@ -158,6 +213,7 @@ class SimulationResult:
     burnout: np.ndarray          # 전소 시각 (분), 없으면 -1
     stats: dict[str, np.ndarray]
     evacuation: EvacuationData | None = None
+    suppression: SuppressionData | None = None
 
     @property
     def end_time(self) -> float:
@@ -309,6 +365,7 @@ def load_result(summary_path: Path) -> SimulationResult:
 
     files = summary["files"]
     evacuation = load_evacuation(out_dir / files["evacuation"]) if "evacuation" in files else None
+    suppression = load_suppression(out_dir / files["suppression"]) if "suppression" in files else None
     return SimulationResult(
         map=data,
         summary=summary,
@@ -317,6 +374,7 @@ def load_result(summary_path: Path) -> SimulationResult:
         burnout=read_grid_csv(out_dir / files["burnout_time"]),
         stats=read_stats_csv(out_dir / files["stats"]),
         evacuation=evacuation,
+        suppression=suppression,
     )
 
 
