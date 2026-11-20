@@ -46,6 +46,7 @@ class MapView(QWidget):
         self._route_items: dict[int, pg.PlotDataItem] = {}   # 팀 id → 경로 선
         self._hiker_labels: list[pg.TextItem] = []
         self.selected_hiker = -1
+        self.evacuation = None     # 지도에 그릴 대피 결과 (기본 예측 또는 보수적 예측)
 
         self._build_plot()
         self._build_controls()
@@ -160,6 +161,7 @@ class MapView(QWidget):
             self._draw_hikers()
             self.set_ignitions(result.map.ignitions)
         self.result = result
+        self.evacuation = result.evacuation
         self.selected_hiker = -1
         self._draw_isochrones()
         self._draw_routes()
@@ -283,7 +285,7 @@ class MapView(QWidget):
             return
 
         spots = []
-        evacuation = self.result.evacuation if self.result is not None else None
+        evacuation = self.evacuation if self.result is not None else None
         if evacuation is not None:
             for hiker in evacuation.hikers:
                 x, y = hiker.position_at(self.time)
@@ -334,9 +336,9 @@ class MapView(QWidget):
     def _draw_routes(self) -> None:
         """팀별 추천 대피 경로. 위험한 팀(고립·여유 부족)은 빨간색, 나머지는 초록색."""
         self._clear_routes()
-        if self.result is None or self.result.evacuation is None:
+        if self.result is None or self.evacuation is None:
             return
-        for hiker in self.result.evacuation.hikers:
+        for hiker in self.evacuation.hikers:
             if not hiker.route_found or len(hiker.route_node_ids) < 2:
                 continue
             points = self._route_points(hiker.route_node_ids)
@@ -347,9 +349,9 @@ class MapView(QWidget):
         self._style_routes()
 
     def _style_routes(self) -> None:
-        if self.result is None or self.result.evacuation is None:
+        if self.result is None or self.evacuation is None:
             return
-        risky = {h.id for h in self.result.evacuation.hikers if h.at_risk}
+        risky = {h.id for h in self.evacuation.hikers if h.at_risk}
         for hiker_id, item in self._route_items.items():
             color = theme.ALERT_COLORS["IMMEDIATE"] if hiker_id in risky else theme.ALERT_COLORS["NONE"]
             selected = hiker_id == self.selected_hiker
@@ -359,6 +361,12 @@ class MapView(QWidget):
             item.setOpacity(0.25 if dimmed else 0.9)
             item.setZValue(27 if selected else 25)
         self._update_route_visibility()
+
+    def set_evacuation(self, evacuation) -> None:
+        """기본 예측 / 보수적 예측 중 지도에 보여 줄 대피 결과를 바꾼다."""
+        self.evacuation = evacuation
+        self._draw_routes()
+        self._draw_hikers()
 
     def highlight_hiker(self, hiker_id: int) -> None:
         """대피 화면에서 고른 팀의 경로를 굵게, 나머지는 흐리게"""

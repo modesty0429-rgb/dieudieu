@@ -4,9 +4,9 @@
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
-| C | 8406 | 약 8,000 | 105% |
-| Python | 3169 | 약 4,000 | 79% |
-| **합계** | **11575** | **약 12,000** | **96%** |
+| C | 8921 | 약 8,000 | 112% |
+| Python | 4165 | 약 4,000 | 104% |
+| **합계** | **13086** | **약 12,000** | **109%** |
 
 ## C
 
@@ -21,8 +21,9 @@
 | `c_core/include/hiker.h` | 17 | 10 | 4 | 3 |
 | `c_core/include/log.h` | 26 | 13 | 9 | 4 |
 | `c_core/include/map_io.h` | 27 | 17 | 6 | 4 |
-| `c_core/include/output_csv.h` | 21 | 12 | 5 | 4 |
-| `c_core/include/output_json.h` | 45 | 32 | 6 | 7 |
+| `c_core/include/montecarlo.h` | 33 | 24 | 4 | 5 |
+| `c_core/include/output_csv.h` | 22 | 13 | 5 | 4 |
+| `c_core/include/output_json.h` | 48 | 35 | 6 | 7 |
 | `c_core/include/pqueue.h` | 29 | 18 | 7 | 4 |
 | `c_core/include/rng.h` | 23 | 13 | 6 | 4 |
 | `c_core/include/scenario_io.h` | 14 | 7 | 4 | 3 |
@@ -44,10 +45,11 @@
 | `c_core/src/grid.c` | 183 | 127 | 34 | 22 |
 | `c_core/src/hiker.c` | 191 | 137 | 38 | 16 |
 | `c_core/src/log.c` | 145 | 101 | 23 | 21 |
-| `c_core/src/main.c` | 379 | 292 | 52 | 35 |
+| `c_core/src/main.c` | 460 | 360 | 59 | 41 |
 | `c_core/src/map_io.c` | 440 | 322 | 77 | 41 |
-| `c_core/src/output_csv.c` | 152 | 111 | 27 | 14 |
-| `c_core/src/output_json.c` | 488 | 396 | 42 | 50 |
+| `c_core/src/montecarlo.c` | 280 | 213 | 40 | 27 |
+| `c_core/src/output_csv.c` | 181 | 134 | 31 | 16 |
+| `c_core/src/output_json.c` | 576 | 468 | 49 | 59 |
 | `c_core/src/pqueue.c` | 118 | 89 | 16 | 13 |
 | `c_core/src/rng.c` | 82 | 47 | 27 | 8 |
 | `c_core/src/scenario_io.c` | 690 | 553 | 71 | 66 |
@@ -59,7 +61,7 @@
 | `c_core/src/trail_io.c` | 697 | 535 | 97 | 65 |
 | `c_core/src/util.c` | 527 | 380 | 91 | 56 |
 | `c_core/src/weather.c` | 255 | 184 | 46 | 25 |
-| **합계** | **8406** | **6151** | **1378** | **877** |
+| **합계** | **8921** | **6555** | **1440** | **926** |
 
 ## Python
 
@@ -71,18 +73,23 @@
 | `gui/services/app_config.py` | 43 | 23 | 9 | 11 |
 | `gui/services/engine_runner.py` | 154 | 100 | 23 | 31 |
 | `gui/services/map_render.py` | 110 | 60 | 30 | 20 |
-| `gui/services/result_loader.py` | 385 | 282 | 33 | 70 |
+| `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
+| `gui/services/result_loader.py` | 412 | 303 | 34 | 75 |
 | `gui/services/scenario_writer.py` | 148 | 100 | 25 | 23 |
 | `gui/services/terrain_generator.py` | 256 | 145 | 60 | 51 |
 | `gui/services/trail_generator.py` | 112 | 76 | 15 | 21 |
+| `gui/services/weather_api.py` | 236 | 153 | 46 | 37 |
 | `gui/theme.py` | 188 | 155 | 19 | 14 |
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
-| `gui/views/evacuation_view.py` | 174 | 141 | 9 | 24 |
+| `gui/views/evacuation_view.py` | 205 | 168 | 10 | 27 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
-| `gui/views/main_window.py` | 260 | 197 | 29 | 34 |
-| `gui/views/map_view.py` | 431 | 336 | 47 | 48 |
+| `gui/views/main_window.py` | 279 | 215 | 30 | 34 |
+| `gui/views/map_view.py` | 439 | 342 | 48 | 49 |
 | `gui/views/playback_bar.py` | 112 | 80 | 9 | 23 |
-| `gui/views/scenario_panel.py` | 346 | 275 | 27 | 44 |
+| `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
+| `gui/views/scenario_panel.py` | 405 | 324 | 34 | 47 |
+| `gui/views/stats_view.py` | 207 | 164 | 17 | 26 |
 | `gui/views/suppression_view.py` | 223 | 178 | 15 | 30 |
+| `gui/views/weather_dialog.py` | 156 | 127 | 9 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
-| **합계** | **3169** | **2308** | **372** | **489** |
+| **합계** | **4165** | **2979** | **563** | **623** |

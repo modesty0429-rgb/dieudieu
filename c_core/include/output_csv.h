@@ -14,6 +14,7 @@ typedef enum {
 } GridValueKind;
 
 int write_grid_csv(const char *path, const Grid *grid, GridValueKind kind);
+int write_value_grid_csv(const char *path, int width, int height, const double *values, int decimals);
 int write_fire_events_csv(const char *path, const SimResult *res);
 int write_stats_csv(const char *path, const SimResult *res);
 const char *cell_state_name(CellState state);

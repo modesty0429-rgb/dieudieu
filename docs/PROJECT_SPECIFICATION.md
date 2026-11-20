@@ -368,7 +368,7 @@ typedef struct {
 | `void update_fuel_moisture(Scenario *sc, double t, double dt)` | fuel_moisture.c | 현재 기온·습도로 평형수분을 구하고, 연료 수분이 그 값을 향해 천천히 따라가게 한다. 남향 사면은 더 건조하게 보정한다. |
 | `double compute_spread_rate(const Scenario*, int x, int y, int dir, const WeatherRecord*, SpreadFactors*)` | spread_rate.c | 한 셀에서 이웃 방향으로 불이 번지는 속도(m/분)를 `기본 속도 × 수분 감쇠 × (1 + 바람 계수 + 경사 계수)`로 계산한다. |
 | `int simulate_fire_step(Scenario*, FireState*, double t, double dt, const WeatherRecord*, Rng*, SimResult*, const SimOptions*)` | spread_sim.c | 연소 중인 모든 셀이 8방향으로 `속도×dt`만큼 불을 밀어내고, 누적 거리가 이웃까지의 거리를 넘으면 그 이웃에 불을 붙이며 도착 시각을 기록한다. 다 탄 셀은 전소로 바꾸고, 비화를 확률적으로 처리한다. |
-| `int run_monte_carlo(Scenario *sc, double *burn_prob, MCSummary *out)` | montecarlo.c | 시드와 기상 오차를 바꿔 같은 시나리오를 N번 반복하고, 셀별로 "탄 횟수 / N"을 연소 확률로 저장한다. |
+| `int run_monte_carlo(Scenario *sc, MonteCarloResult *mc)` | montecarlo.c | 시드와 기상 오차를 바꿔 같은 시나리오를 N번 반복하고, 셀별로 "탄 횟수 / N"을 연소 확률로 저장한다. |
 | `int find_safest_route(const Scenario*, const DangerMap*, int start, double start_time, double speed_kmh, Route*)` | evac_route.c | 등산로 그래프에서 대피소·주차장까지 경로를 찾는다. 각 지점에서 "불 도착 시각 − 내가 지나는 시각"(안전 여유)을 계산해, 여유의 최솟값이 가장 큰 경로를 고른다(같으면 빠른 경로). |
 | `AlertLevel assess_alert_level(const Scenario*, const Hiker*, const DangerMap*, double now, double *remaining)` | evac_alert.c | 등산객 주변에 불이 도착하기까지 남은 시간을 설정값과 비교해 주의/대피 준비/즉시 대피/고립 단계를 판정한다. |
 | `int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, FirebreakPlan *plan)` | suppression.c | 기준 시뮬레이션에서 "이 셀을 막으면 뒤따라 타는 셀 수"(점화 트리의 하위 셀 수)가 큰 칸부터 방화선을 고른다. 몇 칸 고를 때마다 다시 시뮬레이션해 점수를 갱신한다. |

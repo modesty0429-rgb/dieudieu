@@ -6,7 +6,7 @@
 - **[형태 근거]**: 식의 모양은 논문을 따랐지만 계수는 팀이 정함
 - **[가정]**: 팀이 그럴듯하게 정한 값. 실제 자료로 보정이 필요함
 
-> 5단계 기준 (확산·수분·비화·대피·진화 전략). 몬테카를로 모델은 6단계에서 추가한다.
+> 6단계 기준 (확산·수분·비화·대피·진화 전략·몬테카를로·실제 기상).
 
 ---
 
@@ -273,12 +273,43 @@ v = 평지 속도 × e^(−3.5 × |기울기 + 0.05|) / e^(−3.5 × 0.05)
 - 큰 불에서는 헬기 2대만으로는 효과가 작다(8%).
 - 방화선과 헬기를 함께 쓰면 면적은 방화선만 쓸 때와 비슷하지만, 위험 등산객은 가장 적다.
 
+## 12. 몬테카를로 반복 실험 (montecarlo.c)
+
+| 항목 | 내용 |
+|---|---|
+| 반복 | 같은 시나리오를 N회(기본 100회) 실행 |
+| 회차마다 바꾸는 것 | 비화 시드(기본 시드 + 1 + i)와 기상 오차. 오차는 풍속 + N(0, 1 m/s), 풍향 + N(0, 15°), 습도 + N(0, 5%)이며 [가정], 한 회차 안에서는 같은 오차를 유지한다(= "예보가 이만큼 빗나간 날") |
+| 연소 확률 | 셀이 탄 회차 수 / N |
+| 보수적 도착 시각 | 셀마다 가장 이른 10% 회차의 도착 시각. 셀마다 "가장 작은 k개(k = N×10%)"만 삽입 정렬로 유지한다(메모리 N×셀 → k×셀) |
+| 면적 통계 | 평균, 표준편차, 최소, 10%·50%·90% 분위(가장 가까운 순위 방식), 최대 |
+| 보수적 대피 | 격자의 도착 시각을 보수적 도착 시각으로 잠시 바꿔 대피를 다시 계산한다(`evacuation_mc.json`). "예보보다 불이 빨리 오는 경우"에 대비한 안내 |
+
+### 예 (`spring_dry_base`, 100회)
+
+- 피해 면적: 평균 289.0 ha, 표준편차 85.0
+- 범위: 최소 111.0, 10% 171.5, 중앙값 294.0, 90% 389.1, 최대 495.2 ha
+- 기준 시뮬레이션(277.6 ha)은 분포의 가운데쯤에 있지만, **같은 조건에서도 피해가 약 4.5배까지 달라질 수 있다**.
+- 한 번의 시뮬레이션만으로 판단하면 위험하다는 것을 보여 준다.
+
+## 13. 실제 기상 데이터 (gui/services/weather_api.py)
+
+| 항목 | 내용 |
+|---|---|
+| 자료 | 기상청 단기예보 조회서비스(공공데이터포털) `getVilageFcst` — 3일간 1시간 간격 예보 |
+| 사용 항목 | TMP(기온 °C), REH(습도 %), WSD(풍속 m/s), VEC(풍향 °) |
+| 위치 변환 | 위도·경도 → 5 km 격자(nx, ny). 기상청 활용가이드의 람베르트 정각원추 투영 공식(지구 반경 6371.00877 km, 표준위도 30°·60°, 기준점 126°E·38°N = (43, 136))을 쓴다. 서울(37.5665, 126.9780) → (60, 127), 부산 → (98, 76)으로 확인했다 |
+| 발표 시각 | 하루 8번(02·05·08·11·14·17·20·23시). 발표 15분 뒤부터 받을 수 있다고 보고 가장 최근 발표를 고른다 [가정] |
+| 저장 | 엔진 기상 CSV 형식으로 `data/weather/kma_<nx>_<ny>_<발표시각>.csv`에 저장하고, 시뮬레이션 시작 시각 = 첫 예보 시각 |
+| 한계 | 5 km 격자의 평균 예보이므로 산 정상·계곡의 국지 바람과 차이가 있다. 몬테카를로의 기상 오차로 일부 반영한다 |
+| 키 관리 | `config/api_keys.ini`(git 제외). 오류 메시지에서 키를 가려서 보여 준다 |
+
 ## 참고 문헌
 
 - Rothermel, R.C. (1972). *A mathematical model for predicting fire spread in wildland fuels.* USDA Forest Service Research Paper INT-115.
 - Simard, A.J. (1968). *The moisture content of forest fuels.* Canadian Department of Forestry and Rural Development.
 - Horn, B.K.P. (1981). Hill shading and the reflectance map. *Proceedings of the IEEE* 69(1), 14–47.
 - Marsaglia, G. (2003). Xorshift RNGs. *Journal of Statistical Software* 8(14).
+- 기상청 (공공데이터포털). 기상청_단기예보 ((구)_동네예보) 조회서비스 활용가이드 (격자 변환 공식, 응답 코드).
 - Tobler, W. (1993). *Three presentations on geographical analysis and modeling.* NCGIA Technical Report 93-1.
 - Dijkstra, E.W. (1959). A note on two problems in connexion with graphs. *Numerische Mathematik* 1, 269–271.
 - Bresenham, J.E. (1965). Algorithm for computer control of a digital plotter. *IBM Systems Journal* 4(1).

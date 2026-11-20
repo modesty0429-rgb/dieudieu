@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QAbstractItemView, QHeaderView, QLabel, QTableWidget, QTableWidgetItem,
-                               QTextEdit, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QTableWidget,
+                               QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget)
 
 import theme
 from services.result_loader import ALERT_KOREAN, EvacuationData, HikerEvacuation, MapData
@@ -43,11 +43,20 @@ def margin_text(hiker: HikerEvacuation) -> str:
 
 class EvacuationView(QWidget):
     hiker_selected = Signal(int)     # 선택한 팀 id (-1 이면 선택 해제)
+    source_changed = Signal(object)  # 보여 줄 대피 결과가 바뀜 (EvacuationData)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.evacuation: EvacuationData | None = None
+        self.sources: list[EvacuationData] = []     # [기본 예측, 보수적 예측(있으면)]
         self.map: MapData | None = None
+        self.time = 0.0
+
+        self.source_combo = QComboBox()
+        self.source_combo.currentIndexChanged.connect(self._on_source)
+        source_row = QHBoxLayout()
+        source_row.addWidget(QLabel("예측 기준"))
+        source_row.addWidget(self.source_combo, 1)
 
         self.summary_label = QLabel("대피 결과가 없습니다. 시뮬레이션을 실행하면 표시됩니다.")
         self.summary_label.setWordWrap(True)
@@ -74,6 +83,7 @@ class EvacuationView(QWidget):
         legend_label.setObjectName("dim")
 
         layout = QVBoxLayout(self)
+        layout.addLayout(source_row)
         layout.addWidget(self.summary_label)
         layout.addWidget(legend_label)
         layout.addWidget(self.table, 1)
@@ -81,9 +91,28 @@ class EvacuationView(QWidget):
         layout.addWidget(self.detail)
 
     # ------------------------------------------------------------------
-    def set_data(self, evacuation: EvacuationData | None, map_data: MapData | None) -> None:
-        self.evacuation = evacuation
+    def set_data(self, evacuation: EvacuationData | None, map_data: MapData | None,
+                 conservative: EvacuationData | None = None) -> None:
+        """대피 결과를 보여 준다. conservative 가 있으면 '보수적 예측'을 고를 수 있다."""
         self.map = map_data
+        self.sources = [e for e in (evacuation, conservative) if e is not None]
+        self.source_combo.blockSignals(True)
+        self.source_combo.clear()
+        if evacuation is not None:
+            self.source_combo.addItem("기본 예측 (시뮬레이션 1회)")
+        if conservative is not None:
+            self.source_combo.addItem("보수적 예측 (몬테카를로 가장 이른 10%)")
+        self.source_combo.setEnabled(len(self.sources) > 1)
+        self.source_combo.blockSignals(False)
+        self._show(evacuation)
+
+    def _on_source(self, index: int) -> None:
+        if 0 <= index < len(self.sources):
+            self._show(self.sources[index])
+            self.source_changed.emit(self.sources[index])
+
+    def _show(self, evacuation: EvacuationData | None) -> None:
+        self.evacuation = evacuation
         self.table.setRowCount(0)
         self.detail.clear()
         if evacuation is None:
@@ -106,9 +135,11 @@ class EvacuationView(QWidget):
             self._set_cell(row, 5, hiker.exit_name if hiker.route_found else "-")
             if hiker.at_risk:
                 self.table.item(row, 4).setForeground(QBrush(QColor(theme.ERROR)))
+        self.update_time(self.time)
 
     def update_time(self, t: float) -> None:
         """재생 시각이 바뀌면 경보·상태·남은 시간 열을 갱신한다."""
+        self.time = t
         if self.evacuation is None:
             return
         levels, names = self.evacuation.alert_levels, self.evacuation.status_names

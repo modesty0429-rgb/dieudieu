@@ -204,6 +204,30 @@ def load_suppression(path: Path) -> SuppressionData:
 
 
 @dataclass
+class MonteCarloData:
+    """몬테카를로 결과 (mc_summary.json, burn_probability.csv, arrival_early.csv)"""
+    summary: dict
+    areas: np.ndarray               # 회차별 피해 면적 (ha)
+    burn_probability: np.ndarray    # 셀별 연소 확률 0 ~ 1
+    arrival_early: np.ndarray       # 셀별 보수적(가장 이른 10%) 도착 시각, 없으면 -1
+    evacuation: EvacuationData | None = None   # 보수적 도착 시각으로 다시 계산한 대피 결과
+
+    @property
+    def runs(self) -> int:
+        return int(self.summary["runs"])
+
+
+def load_monte_carlo(out_dir: Path, files: dict) -> MonteCarloData:
+    summary = json.loads((out_dir / files["mc_summary"]).read_text(encoding="utf-8"))
+    detail = np.asarray(summary["runs_detail"], dtype=np.float64).reshape(-1, 5)
+    evacuation = load_evacuation(out_dir / files["evacuation_mc"]) if "evacuation_mc" in files else None
+    return MonteCarloData(summary=summary, areas=detail[:, 4],
+                          burn_probability=read_grid_csv(out_dir / files["burn_probability"]),
+                          arrival_early=read_grid_csv(out_dir / files["arrival_early"]),
+                          evacuation=evacuation)
+
+
+@dataclass
 class SimulationResult:
     """시뮬레이션 결과 (summary.json 과 CSV 파일들)"""
     map: MapData
@@ -214,6 +238,7 @@ class SimulationResult:
     stats: dict[str, np.ndarray]
     evacuation: EvacuationData | None = None
     suppression: SuppressionData | None = None
+    montecarlo: MonteCarloData | None = None
 
     @property
     def end_time(self) -> float:
@@ -366,6 +391,7 @@ def load_result(summary_path: Path) -> SimulationResult:
     files = summary["files"]
     evacuation = load_evacuation(out_dir / files["evacuation"]) if "evacuation" in files else None
     suppression = load_suppression(out_dir / files["suppression"]) if "suppression" in files else None
+    montecarlo = load_monte_carlo(out_dir, files) if "mc_summary" in files else None
     return SimulationResult(
         map=data,
         summary=summary,
@@ -375,6 +401,7 @@ def load_result(summary_path: Path) -> SimulationResult:
         stats=read_stats_csv(out_dir / files["stats"]),
         evacuation=evacuation,
         suppression=suppression,
+        montecarlo=montecarlo,
     )
 
 

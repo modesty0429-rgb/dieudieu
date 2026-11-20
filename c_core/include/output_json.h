@@ -10,6 +10,7 @@
 #include "wf_types.h"
 #include "evac_alert.h"
 #include "suppression_eval.h"
+#include "montecarlo.h"
 
 #define JSON_MAX_DEPTH 16
 
@@ -41,5 +42,7 @@ int  write_summary_json(const char *path, const Scenario *sc, const SimResult *r
                         const ResultFlags *flags, double elapsed_sec);
 int  write_evacuation_json(const char *path, const Scenario *sc, const EvacSummary *summary);
 int  write_suppression_json(const char *path, const Scenario *sc, const SuppressionReport *report);
+int  write_monte_carlo_json(const char *path, const Scenario *sc, const MonteCarloResult *mc,
+                            const EvacSummary *normal_evac, const EvacSummary *conservative_evac);
 
 #endif /* OUTPUT_JSON_H */

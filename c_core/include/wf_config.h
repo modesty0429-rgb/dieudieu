@@ -7,7 +7,7 @@
 #define WF_CONFIG_H
 
 /* ===== 프로그램 정보 ===== */
-#define WF_VERSION "0.5.0 (5단계)"
+#define WF_VERSION "0.6.0 (6단계)"
 
 /* ===== 크기 제한 ===== */
 #define WF_PATH_MAX       260   /* 파일 경로 최대 길이 (Windows MAX_PATH와 같음) */

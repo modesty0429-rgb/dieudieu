@@ -7,6 +7,8 @@
     - 기상: 시나리오의 기상 파일 / 직접 입력(풍속·풍향·습도·기온 슬라이더)
     - 시뮬레이션 시간, 난수 시드, 비화 사용
     - 진화 자원 (방화선 칸 수, 완성 시각, 헬기 대수, 출동 간격)과 전략 비교 포함 여부
+    - 몬테카를로 반복 횟수와 포함 여부
+    - 실제 기상 데이터 불러오기 (weather_dialog.py) → 기상 파일·시작 시각 교체
     - 실행 / 중지 버튼
 
 "실행"을 누르면 바꾼 값을 ScenarioOverrides 로 모아 run_requested 시그널을 보낸다.
@@ -14,6 +16,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -23,6 +26,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout, 
 
 from services import app_config
 from services.scenario_writer import ScenarioOverrides, SeasonPreset, load_season_presets, read_ini
+from views.weather_dialog import WeatherDialog
 
 WIND_NAMES = ["북풍", "북동풍", "동풍", "남동풍", "남풍", "남서풍", "서풍", "북서풍"]
 
@@ -74,6 +78,7 @@ class ScenarioPanel(QScrollArea):
         self.setWidgetResizable(True)
         self.setMinimumWidth(330)
         self.presets: list[SeasonPreset] = load_season_presets()
+        self.weather_override: tuple[Path, str] | None = None   # (기상 파일, 시작 시각 "YYYY-MM-DD HH:MM")
 
         content = QWidget()
         layout = QVBoxLayout(content)
@@ -82,6 +87,7 @@ class ScenarioPanel(QScrollArea):
         layout.addWidget(self._build_weather_group())
         layout.addWidget(self._build_simulation_group())
         layout.addWidget(self._build_suppression_group())
+        layout.addWidget(self._build_montecarlo_group())
         layout.addWidget(self._build_run_buttons())
         layout.addStretch(1)
         self.setWidget(content)
@@ -160,9 +166,12 @@ class ScenarioPanel(QScrollArea):
         form.addRow("기온", self.temperature)
         layout.addLayout(form)
 
-        self.real_weather_button = QPushButton("실제 기상 데이터 불러오기")
-        self.real_weather_button.setEnabled(False)
-        self.real_weather_button.setToolTip("기상청 단기예보 API 연동은 6단계에서 추가됩니다.")
+        self.weather_file_label = QLabel("")
+        self.weather_file_label.setObjectName("dim")
+        self.weather_file_label.setWordWrap(True)
+        layout.addWidget(self.weather_file_label)
+        self.real_weather_button = QPushButton("☁ 실제 기상 데이터 불러오기")
+        self.real_weather_button.clicked.connect(self._open_weather_dialog)
         layout.addWidget(self.real_weather_button)
         self._update_weather_enabled()
         return group
@@ -215,9 +224,34 @@ class ScenarioPanel(QScrollArea):
         for widget in (self.firebreak_cells, self.firebreak_ready, self.helicopters, self.heli_interval):
             widget.setEnabled(enabled)
 
+    def _build_montecarlo_group(self) -> QGroupBox:
+        group = QGroupBox("몬테카를로")
+        form = QFormLayout(group)
+        self.include_montecarlo = QCheckBox("반복 실험 포함 (100회 약 5~10초)")
+        self.mc_runs = QSpinBox()
+        self.mc_runs.setRange(10, 1000)
+        self.mc_runs.setSingleStep(10)
+        self.mc_runs.setSuffix(" 회")
+        self.include_montecarlo.toggled.connect(self.mc_runs.setEnabled)
+        form.addRow(self.include_montecarlo)
+        form.addRow("반복 횟수", self.mc_runs)
+        self.mc_runs.setEnabled(False)
+        return group
+
     def run_mode(self) -> str:
-        """엔진 실행 모드: 진화 전략 포함이면 optimize, 아니면 evac (확산 + 대피)"""
-        return "optimize" if self.include_suppression.isChecked() else "evac"
+        """
+        엔진 실행 모드
+          진화 전략 + 몬테카를로 → all / 진화 전략만 → optimize / 몬테카를로만 → mc / 둘 다 아님 → evac
+        """
+        suppression = self.include_suppression.isChecked()
+        montecarlo = self.include_montecarlo.isChecked()
+        if suppression and montecarlo:
+            return "all"
+        if suppression:
+            return "optimize"
+        if montecarlo:
+            return "mc"
+        return "evac"
 
     def _build_run_buttons(self) -> QWidget:
         box = QWidget()
@@ -276,6 +310,8 @@ class ScenarioPanel(QScrollArea):
         self.firebreak_ready.setValue(int(ini.getfloat("suppression", "firebreak_ready_min", fallback=60)))
         self.helicopters.setValue(ini.getint("suppression", "helicopters", fallback=2))
         self.heli_interval.setValue(int(ini.getfloat("suppression", "heli_interval_min", fallback=30)))
+        self.mc_runs.setValue(ini.getint("montecarlo", "runs", fallback=100))
+        self.set_weather_override(None)
         for key, value in ini.items("ignition") if ini.has_section("ignition") else []:
             if key.startswith("point"):
                 parts = [p.strip() for p in value.split(",")]
@@ -302,6 +338,13 @@ class ScenarioPanel(QScrollArea):
         o.set("suppression", "firebreak_ready_min", self.firebreak_ready.value())
         o.set("suppression", "helicopters", self.helicopters.value())
         o.set("suppression", "heli_interval_min", self.heli_interval.value())
+        o.set("montecarlo", "runs", self.mc_runs.value())
+        if self.weather_override is not None and self.weather_file_radio.isChecked():
+            path, start = self.weather_override
+            # 시나리오 파일이 있는 폴더 기준 상대 경로 (Windows 에서도 / 로 저장)
+            relative = os.path.relpath(path, self.current_scenario().parent).replace("\\", "/")
+            o.set("weather", "file", relative)
+            o.set("time", "start_datetime", start)
         preset = self._current_preset()
         if preset is not None:
             o.set("moisture", "live_moisture_factor", preset.live_moisture_factor)
@@ -333,6 +376,22 @@ class ScenarioPanel(QScrollArea):
         self.humidity.set_value(preset.rh_pct)
         self.temperature.set_value(preset.temp_c)
         self.weather_fixed_radio.setChecked(True)
+
+    def _open_weather_dialog(self) -> None:
+        dialog = WeatherDialog(self)
+        if dialog.exec() and dialog.selected_path is not None and dialog.rows:
+            self.set_weather_override((dialog.selected_path, f"{dialog.rows[0].time:%Y-%m-%d %H:%M}"))
+
+    def set_weather_override(self, override: tuple[Path, str] | None) -> None:
+        """불러온 기상 파일을 쓰도록 설정한다. (None 이면 시나리오 파일의 기상 그대로)"""
+        self.weather_override = override
+        if override is None:
+            self.weather_file_label.setText("")
+            return
+        path, start = override
+        self.weather_file_label.setText(f"사용할 기상 파일: {path.name} (시작 {start})")
+        self.season_combo.setCurrentIndex(0)
+        self.weather_file_radio.setChecked(True)
 
     def _update_weather_enabled(self) -> None:
         enabled = self.weather_fixed_radio.isChecked()

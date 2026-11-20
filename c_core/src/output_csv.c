@@ -84,6 +84,35 @@ int write_grid_csv(const char *path, const Grid *grid, GridValueKind kind)
     return close_checked(fp, path);
 }
 
+/*
+ * 1차원 배열(width × height)을 격자 CSV로 저장한다. (몬테카를로 연소 확률 등)
+ * decimals: 소수점 아래 자릿수. 음수 값은 -1 로 저장한다.
+ */
+int write_value_grid_csv(const char *path, int width, int height, const double *values, int decimals)
+{
+    FILE *fp = open_for_write(path);
+    int   x, y;
+
+    if (fp == NULL) {
+        return 0;
+    }
+    for (y = 0; y < height; y++) {
+        for (x = 0; x < width; x++) {
+            double value = values[y * width + x];
+            if (x > 0) {
+                fputc(',', fp);
+            }
+            if (value < 0.0) {
+                fputs("-1", fp);
+            } else {
+                fprintf(fp, "%.*f", decimals, value);
+            }
+        }
+        fputc('\n', fp);
+    }
+    return close_checked(fp, path);
+}
+
 /* 비교 함수: 이벤트를 시각 순서로 정렬하기 위해 qsort에 넘긴다. */
 static int compare_events(const void *a, const void *b)
 {

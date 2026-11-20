@@ -6,7 +6,7 @@
 - **C 계산 엔진** (`c_core/`, `wildfire.exe`): 지도 읽기, 확산 시뮬레이션, 대피 경로, 진화 전략 등 모든 계산
 - **Python GUI** (`gui/`): 화면, 애니메이션, 기상 API 다운로드, 가상 지형 생성
 
-> 현재 진행 상황: **5단계 완료** (진화 전략 최적화 + 전후 비교)
+> 현재 진행 상황: **6단계 완료** (기상 API 연동, 몬테카를로, 통계·리포트)
 > 전체 설계는 [`docs/PROJECT_SPECIFICATION.md`](docs/PROJECT_SPECIFICATION.md), 단계별 기록은 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
 ---
@@ -105,8 +105,9 @@ bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode printmap
 | `--mode printmap` | 지도·요약 출력 |
 | `--mode run` | 산불 확산 시뮬레이션 + 결과 저장 |
 | `--mode evac` | 확산 시뮬레이션 + 등산객 대피 경로·경보 (`evacuation.json` 추가) |
-| `--mode optimize` (= `all`) | evac + 방화선 배치 최적화 + 진화 전략 4가지 비교 (`suppression.json`, 전략별 격자 CSV 추가) |
-| `--mode mc` | 6단계에서 구현 |
+| `--mode optimize` | evac + 방화선 배치 최적화 + 진화 전략 4가지 비교 (`suppression.json`, 전략별 격자 CSV 추가) |
+| `--mode mc` | evac + 몬테카를로 반복 실험 (`mc_summary.json`, `burn_probability.csv`, `arrival_early.csv`, `evacuation_mc.json`) |
+| `--mode all` | 위의 모든 계산 |
 | `--map-every <분>` | run 모드에서 이 간격마다 콘솔에 화재 지도 출력 |
 | `--out <폴더>` | 결과 폴더 지정 |
 | `--seed <정수>` | 난수 시드 지정 |
@@ -168,7 +169,17 @@ bin\wildfire.exe ..\data\scenarios\spring_danger_valley.ini --mode optimize
 이어서 "대응 없음 / 방화선 / 헬기 / 방화선 + 헬기"의 피해 면적, 감소율, 등산로 소실, 위험 등산객 수를 비교한 표가 나옵니다.
 결과 폴더에는 `suppression.json` 과 전략별 `suppression_<전략>_arrival.csv`, `_burnout.csv` 가 저장됩니다.
 
-### 4-5. 오류 메시지 확인 (일부러 틀린 시나리오)
+### 4-5. 몬테카를로 (mc)
+
+```bat
+bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode mc
+```
+
+같은 조건을 `[montecarlo] runs`번(기본 100번) 반복하며 비화 난수와 기상 오차를 바꿉니다.
+피해 면적 통계와 분포 막대그래프가 출력되고, 셀별 연소 확률과 "가장 이른 10%" 도착 시각이 저장됩니다.
+그 도착 시각으로 대피를 다시 계산한 **보수적 대피 안내**도 함께 나옵니다.
+
+### 4-6. 오류 메시지 확인 (일부러 틀린 시나리오)
 
 ```bat
 bin\wildfire.exe ..\data\scenarios\tests\bad_values.ini --mode printmap
@@ -202,11 +213,23 @@ python gui/main.py
 | 오른쪽 "대피 안내" | 팀별 경보 단계(색 배지), 상태, 남은 시간, 최소 안전 여유, 목적지. 행을 고르면 지도에서 그 팀 경로가 굵게 표시되고 아래에 상세 경로 표시 |
 | "진화 전략" 탭 | 전략 4가지 비교표와, 고른 두 전략의 불 모습을 나란히 재생하는 지도 2개(확대·이동이 함께 움직임). 방화선(흰 칸), 헬기 살수(하늘색 원) 표시 |
 | 왼쪽 "진화 자원" | 방화선 칸 수·완성 시각, 헬기 대수·출동 간격. "진화 전략 비교 포함"을 끄면 확산 + 대피만 계산 (더 빠름) |
+| "통계" 탭 | 피해 면적·확산 속도·연소 셀·기상·연료 수분 그래프(재생 시각 세로선), 몬테카를로 피해 면적 분포, 연소 확률 지도 |
+| "리포트" 탭 | 결과 요약 미리보기, **리포트 저장** → `output/<이름>/report/report.html` + 화면 그림 PNG (브라우저에서 인쇄 → PDF) |
+| 왼쪽 "몬테카를로" | 반복 실험 포함 여부와 횟수. 포함하면 오른쪽 대피 안내에서 "보수적 예측"을 고를 수 있음 |
+| ☁ 실제 기상 데이터 불러오기 | 산 위치를 골라 기상청 단기예보를 받거나(인터넷·API 키 필요), 저장된 기상 파일(샘플 포함)을 골라 시나리오의 기상·시작 시각으로 사용 |
 | "엔진 로그" 탭 | C 엔진 출력 전체 (콘솔 지도·통계 표 포함). 엔진이 오류로 끝나면 자동으로 이 탭으로 이동 |
 | 파일 메뉴 | 예전 결과(`summary.json`) 불러오기, 결과 폴더 열기 |
 
 GUI는 설정을 `data/scenarios/gui_custom.ini` 로 저장한 뒤 `c_core` 폴더에서 엔진을 실행하고,
 결과는 `output/gui_custom/` 에 저장됩니다. 계절 프리셋 값은 `data/scenarios/season_presets.ini` 에 있습니다.
+
+### 5-1. 기상청 API 키 설정 (실제 기상 데이터를 쓸 때만)
+
+1. 공공데이터포털(data.go.kr)에서 **"기상청_단기예보 ((구)_동네예보) 조회서비스"** 를 활용 신청합니다. (승인 후 키가 동작하기까지 시간이 걸릴 수 있음)
+2. `config/api_keys.example.ini` 를 같은 폴더에 `api_keys.ini` 로 복사하고, `service_key =` 뒤에 일반 인증키를 붙여 넣습니다. (Encoding / Decoding 키 모두 가능)
+3. `api_keys.ini` 는 `.gitignore` 에 들어 있어 GitHub에 올라가지 않습니다. **키를 코드나 다른 파일에 쓰지 마세요.**
+
+키가 없거나 인터넷이 안 되면 대화상자에서 "저장된 기상 파일 사용"으로 샘플 파일을 고르면 됩니다.
 
 ## 6. 샘플 데이터 다시 만들기
 
@@ -240,6 +263,8 @@ python tools/count_lines.py
 | 다익스트라 (변형) + 이진 힙 | `evac_route.c`, `pqueue.c` | Dijkstra, E.W. (1959). *Numerische Mathematik* 1 |
 | 탐욕법 + 점화 트리 하위 가치 | `suppression.c` | 일반적인 탐욕 알고리즘·트리 누적 합 (자료구조 교과서) |
 | 공통 난수 (사건별 난수) | `rng.c` `rng_seed_for_event` | 시뮬레이션 비교 실험의 분산 감소 기법 (common random numbers) |
+| 몬테카를로 + 가장 작은 k개 유지(삽입 정렬) | `montecarlo.c` | 일반적인 통계 기법·정렬 알고리즘 |
+| 기상청 격자 변환 (람베르트 정각원추) | `gui/services/weather_api.py` | 기상청 단기예보 조회서비스 활용가이드 |
 | Tobler 보행 함수 | `hiker.c` | Tobler, W. (1993). NCGIA Technical Report 93-1 |
 | 너비 우선 탐색(BFS) | `trail_io.c` `check_exits_reachable` | 일반적인 그래프 알고리즘 (자료구조 교과서) |
 | Rothermel 확산 모델 (단순화) | `spread_rate.c` | Rothermel, R.C. (1972). USDA Forest Service INT-115 |

@@ -11,14 +11,15 @@
  *   run      : 산불 확산 시뮬레이션 → output 폴더에 CSV/JSON 저장 (2단계)
  *   evac     : 확산 시뮬레이션 + 등산객 대피 경로·경보 → evacuation.json (4단계)
  *   optimize : 확산 + 대피 + 방화선·헬기 배치 최적화와 전략 비교 → suppression.json (5단계)
- *   mc       : 몬테카를로 반복 실험 (6단계 예정)
- *   all      : run → evac → optimize (6단계에서 mc 추가)
+ *   mc       : 확산 + 대피 + 몬테카를로 반복 실험(연소 확률, 보수적 대피) (6단계)
+ *   all      : 확산 + 대피 + 진화 전략 + 몬테카를로 모두
  *
  * main 함수의 흐름:
  *   1) 로그 준비 → 2) 명령줄 인자 해석 → 3) 시나리오 읽기
  *   → 4) 모드별 작업 → 5) 메모리 해제 → 6) 종료 코드 반환
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -31,6 +32,7 @@
 #include "output_json.h"
 #include "evac_alert.h"
 #include "suppression_eval.h"
+#include "montecarlo.h"
 #include "util.h"
 #include "log.h"
 
@@ -209,8 +211,8 @@ static int save_summary(const Scenario *sc, const SimResult *res, const ResultFl
     return 1;
 }
 
-/* 대피 안내 단계: 계산 → 콘솔 표 → evacuation.json. 반환값: 종료 코드 */
-static int evacuation_step(Scenario *sc, ResultFlags *flags)
+/* 대피 안내 단계: 계산 → 콘솔 표 → evacuation.json. evac 에 요약을 돌려준다. 반환값: 종료 코드 */
+static int evacuation_step(Scenario *sc, ResultFlags *flags, EvacSummary *evac_out)
 {
     EvacSummary evac;
     char        path[WF_PATH_MAX];
@@ -227,7 +229,80 @@ static int evacuation_step(Scenario *sc, ResultFlags *flags)
         return WF_ERR_OTHER;
     }
     flags->evacuation = 1;
+    *evac_out = evac;
     return WF_OK;
+}
+
+/*
+ * 보수적 대피: 격자의 불 도착 시각을 몬테카를로의 "가장 이른 10%" 도착 시각으로 잠시 바꿔
+ * 대피를 다시 계산한다. (예보보다 불이 빨리 오는 경우에 대비한 안내)
+ * 끝나면 원래 도착 시각으로 되돌린다. 성공 1, 실패 0
+ */
+static int conservative_evacuation(Scenario *sc, const MonteCarloResult *mc, EvacSummary *evac)
+{
+    Grid   *grid = &sc->grid;
+    int     cells = grid->width * grid->height;
+    double *saved = (double *)wf_malloc((size_t)cells * sizeof(double), "도착 시각 백업");
+    char    path[WF_PATH_MAX];
+    int     ok;
+    int     i;
+
+    if (saved == NULL) {
+        return 0;
+    }
+    for (i = 0; i < cells; i++) {
+        Cell *cell = &grid->cells[i / grid->width][i % grid->width];
+        saved[i] = cell->arrival_time;
+        cell->arrival_time = mc->arrival_early[i];
+    }
+    ok = run_evacuation(sc, evac);
+    output_path(sc, "evacuation_mc.json", path, sizeof(path));
+    ok = ok && write_evacuation_json(path, sc, evac);
+    for (i = 0; i < cells; i++) {
+        grid->cells[i / grid->width][i % grid->width].arrival_time = saved[i];
+    }
+    free(saved);
+    return ok;
+}
+
+/* 몬테카를로 단계: 반복 실험 → 콘솔 요약 → 연소 확률·보수적 도착 시각 CSV → (보수적 대피) → mc_summary.json */
+static int montecarlo_step(Scenario *sc, ResultFlags *flags, const EvacSummary *normal_evac)
+{
+    MonteCarloResult mc;
+    EvacSummary      conservative;
+    char             path[WF_PATH_MAX];
+    int              ok;
+
+    log_progress(90, "몬테카를로 %d회 반복 실험 시작", sc->mc.runs);
+    if (!run_monte_carlo(sc, &mc)) {
+        free_monte_carlo(&mc);
+        return WF_ERR_MEMORY;
+    }
+    print_monte_carlo_summary(&mc);
+    log_info("몬테카를로: 피해 면적 평균 %.1f ha, 10%%~90%% 범위 %.1f ~ %.1f ha",
+             mc.mean_area, mc.p10_area, mc.p90_area);
+
+    output_path(sc, "burn_probability.csv", path, sizeof(path));
+    ok = write_value_grid_csv(path, mc.width, mc.height, mc.burn_probability, 3);
+    output_path(sc, "arrival_early.csv", path, sizeof(path));
+    ok = ok && write_value_grid_csv(path, mc.width, mc.height, mc.arrival_early, 2);
+
+    if (ok && flags->evacuation && sc->hiker_count > 0) {
+        ok = conservative_evacuation(sc, &mc, &conservative);
+        if (ok) {
+            log_info("대피 비교: 기본 예측 위험 %d팀 %d명 → 보수적 예측 위험 %d팀 %d명 (고립 %d → %d팀)",
+                     normal_evac->at_risk_hikers, normal_evac->at_risk_people,
+                     conservative.at_risk_hikers, conservative.at_risk_people,
+                     normal_evac->trapped, conservative.trapped);
+        }
+    }
+    output_path(sc, "mc_summary.json", path, sizeof(path));
+    ok = ok && write_monte_carlo_json(path, sc, &mc,
+                                      (flags->evacuation && sc->hiker_count > 0) ? normal_evac : NULL,
+                                      (flags->evacuation && sc->hiker_count > 0) ? &conservative : NULL);
+    flags->montecarlo = ok;
+    free_monte_carlo(&mc);
+    return ok ? WF_OK : WF_ERR_OTHER;
 }
 
 /* 진화 전략 단계: 방화선 최적화 + 전략 4가지 비교 → 콘솔 표 → suppression.json. 반환값: 종료 코드 */
@@ -261,14 +336,16 @@ static int suppression_step(Scenario *sc, ResultFlags *flags)
  *   2) 기준 시뮬레이션(대응 없음) → 콘솔 통계·지도 → 확산 결과 파일 저장
  *   3) (evac 이상) 대피 안내
  *   4) (optimize) 진화 전략 — 시뮬레이션을 여러 번 다시 돌리므로 2) 의 파일을 먼저 저장해 둠
- *   5) summary.json
+ *   5) (mc) 몬테카를로 반복 실험 + 보수적 대피
+ *   6) summary.json
  */
 static int run_fire_mode(Scenario *sc, const CommandLine *cmd, clock_t start_clock,
-                         int with_evacuation, int with_suppression)
+                         int with_evacuation, int with_suppression, int with_montecarlo)
 {
     SimOptions  opts;
     SimResult   res;
     ResultFlags flags = { 0, 0, 0 };
+    EvacSummary evac = { 0, 0, 0, 0, 0, 0, 0 };
     char        log_path[WF_PATH_MAX];
     int         exit_code = WF_OK;
 
@@ -298,10 +375,13 @@ static int run_fire_mode(Scenario *sc, const CommandLine *cmd, clock_t start_clo
     }
 
     if (exit_code == WF_OK && with_evacuation) {
-        exit_code = evacuation_step(sc, &flags);
+        exit_code = evacuation_step(sc, &flags, &evac);
     }
     if (exit_code == WF_OK && with_suppression) {
         exit_code = suppression_step(sc, &flags);
+    }
+    if (exit_code == WF_OK && with_montecarlo) {
+        exit_code = montecarlo_step(sc, &flags, &evac);
     }
 
     log_progress(95, "결과 저장 중: %s", sc->output_dir);
@@ -350,19 +430,20 @@ int main(int argc, char *argv[])
         exit_code = run_print_map(&sc, cmd.map_step);
         break;
     case MODE_RUN:
-        exit_code = run_fire_mode(&sc, &cmd, start_clock, 0, 0);
+        exit_code = run_fire_mode(&sc, &cmd, start_clock, 0, 0, 0);
         break;
     case MODE_EVAC:
-        exit_code = run_fire_mode(&sc, &cmd, start_clock, 1, 0);
+        exit_code = run_fire_mode(&sc, &cmd, start_clock, 1, 0, 0);
         break;
     case MODE_OPTIMIZE:
-    case MODE_ALL:
-        exit_code = run_fire_mode(&sc, &cmd, start_clock, 1, 1);
+        exit_code = run_fire_mode(&sc, &cmd, start_clock, 1, 1, 0);
         break;
     case MODE_MC:
+        exit_code = run_fire_mode(&sc, &cmd, start_clock, 1, 0, 1);
+        break;
+    case MODE_ALL:
     default:
-        log_error("이 모드는 아직 구현되지 않았습니다. 몬테카를로(mc)는 6단계에서 추가됩니다.");
-        exit_code = WF_ERR_OTHER;
+        exit_code = run_fire_mode(&sc, &cmd, start_clock, 1, 1, 1);
         break;
     }
 

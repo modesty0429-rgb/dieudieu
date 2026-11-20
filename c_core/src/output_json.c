@@ -250,6 +250,14 @@ int write_summary_json(const char *path, const Scenario *sc, const SimResult *re
     if (flags->suppression) {
         json_string(&w, "suppression", "suppression.json");
     }
+    if (flags->montecarlo) {
+        json_string(&w, "mc_summary", "mc_summary.json");
+        json_string(&w, "burn_probability", "burn_probability.csv");
+        json_string(&w, "arrival_early", "arrival_early.csv");
+        if (flags->evacuation) {
+            json_string(&w, "evacuation_mc", "evacuation_mc.json");
+        }
+    }
     json_end_object(&w);
 
     json_end_object(&w);
@@ -478,6 +486,86 @@ int write_suppression_json(const char *path, const Scenario *sc, const Suppressi
         json_end_object(&w);
     }
     json_end_array(&w);
+
+    json_end_object(&w);
+    if (!json_close(&w)) {
+        log_error("JSON 저장 중 오류: %s", path);
+        return 0;
+    }
+    return 1;
+}
+
+/* ================================================================
+ * 몬테카를로 결과 저장
+ * ================================================================ */
+
+static void write_evac_counts(JsonWriter *w, const char *key, const EvacSummary *e)
+{
+    json_begin_object(w, key);
+    json_int(w, "evacuated", e->evacuated);
+    json_int(w, "safe", e->safe);
+    json_int(w, "trapped", e->trapped);
+    json_int(w, "at_risk_hikers", e->at_risk_hikers);
+    json_int(w, "at_risk_people", e->at_risk_people);
+    json_end_object(w);
+}
+
+/*
+ * mc_summary.json: 반복 횟수, 기상 오차 설정, 피해 면적 통계, 회차별 [시드, 풍속 오차, 풍향 오차, 습도 오차, 면적],
+ * 기본 예측과 보수적 예측의 대피 결과 비교 (등산객이 있을 때)
+ */
+int write_monte_carlo_json(const char *path, const Scenario *sc, const MonteCarloResult *mc,
+                           const EvacSummary *normal_evac, const EvacSummary *conservative_evac)
+{
+    JsonWriter w;
+    int        i;
+
+    if (!json_open(&w, path)) {
+        return 0;
+    }
+    json_begin_object(&w, NULL);
+    json_int(&w, "runs", mc->runs);
+    json_int(&w, "base_seed", (int)mc->base_seed);
+    json_number(&w, "early_percentile", MC_EARLY_PERCENTILE);
+    json_int(&w, "early_rank", mc->early_rank);
+
+    json_begin_object(&w, "weather_error_sd");
+    json_number(&w, "wind_speed_ms", sc->mc.wind_speed_sd);
+    json_number(&w, "wind_dir_deg", sc->mc.wind_dir_sd_deg);
+    json_number(&w, "rh_pct", sc->mc.rh_sd);
+    json_end_object(&w);
+
+    json_begin_object(&w, "area_ha");
+    json_number(&w, "mean", mc->mean_area);
+    json_number(&w, "sd", mc->sd_area);
+    json_number(&w, "min", mc->min_area);
+    json_number(&w, "p10", mc->p10_area);
+    json_number(&w, "p50", mc->p50_area);
+    json_number(&w, "p90", mc->p90_area);
+    json_number(&w, "max", mc->max_area);
+    json_end_object(&w);
+
+    json_begin_array(&w, "run_columns");
+    json_string(&w, NULL, "seed");
+    json_string(&w, NULL, "wind_speed_offset");
+    json_string(&w, NULL, "wind_dir_offset");
+    json_string(&w, NULL, "rh_offset");
+    json_string(&w, NULL, "area_ha");
+    json_end_array(&w);
+    json_begin_array(&w, "runs_detail");
+    for (i = 0; i < mc->runs; i++) {
+        begin_item(&w, NULL);
+        fprintf(w.fp, "[%u, %.3f, %.2f, %.2f, %.2f]", mc->seeds[i], mc->offsets[i].wind_speed_ms,
+                mc->offsets[i].wind_dir_deg, mc->offsets[i].rh_pct, mc->areas[i]);
+    }
+    json_end_array(&w);
+
+    if (normal_evac != NULL && conservative_evac != NULL) {
+        json_begin_object(&w, "evacuation_compare");
+        write_evac_counts(&w, "normal", normal_evac);
+        write_evac_counts(&w, "conservative", conservative_evac);
+        json_end_object(&w);
+    }
 
     json_end_object(&w);
     if (!json_close(&w)) {

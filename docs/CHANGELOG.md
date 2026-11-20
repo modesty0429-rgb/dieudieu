@@ -211,3 +211,59 @@
 - 실행 시간: optimize 모드 약 2~4초 (최적화 빌드)
 - GUI offscreen 테스트: 위험 시나리오 optimize 실행 → 비교표·나란히 재생 지도 확인
 - **MSVC 빌드, Windows 화면 확인 필요**
+
+## 6단계 — 기상 API 연동, 몬테카를로, 통계·리포트 (2026-11-20)
+
+### 작업 폴더
+- 이번 단계부터 세션 작업 폴더가 GitHub 저장소를 받은 `dieudieu` 폴더로 바뀌었다. GitHub `main`(5단계)과 내용이 같음을 확인하고 이어서 작업했다.
+
+### 만든 것 (C)
+- **`montecarlo.c`**:
+  - N회 반복(회차마다 비화 시드와 기상 오차를 바꿈)
+  - 셀별 연소 확률, 가장 이른 10% 도착 시각(셀마다 가장 작은 k개를 삽입 정렬로 유지)
+  - 면적 평균·표준편차·분위수, 콘솔 막대그래프
+- **`main.c`**:
+  - `--mode mc`(확산 + 대피 + 몬테카를로), `--mode all`(모든 계산)
+  - 보수적 대피: 도착 시각을 잠시 바꿔 대피를 다시 계산
+- **`output_csv.c`**: `write_value_grid_csv` (연소 확률 등 실수 격자)
+- **`output_json.c`**: `mc_summary.json` (통계, 회차별 시드·기상 오차·면적, 기본 / 보수적 대피 비교), summary 파일 목록에 몬테카를로 파일 추가
+
+### 만든 것 (Python)
+- **`services/weather_api.py`**: 기상청 단기예보 API
+  - 위경도 → 격자 변환
+  - 최근 발표 시각 선택
+  - 응답 해석(XML 오류 포함)
+  - 엔진 CSV 저장, 저장 파일 다시 읽기
+  - 오류 메시지에서 API 키 가리기
+- **`views/weather_dialog.py`**: 산 위치 선택 → 예보 받기, 또는 저장된 기상 파일 선택 → 미리보기 → 시나리오 기상·시작 시각 교체
+- **`views/stats_view.py`**: 피해 면적 / 확산 속도·연소 셀 / 기상·연료 수분 그래프(재생 시각 세로선), 몬테카를로 분포, 연소 확률 지도
+- **`services/report_builder.py`**, **`views/report_view.py`**: 결과 리포트 HTML(시나리오, 시간별 확산, 대피, 진화 전략, 몬테카를로, 화면 그림)을 `output/<이름>/report/`에 저장
+- **`views/evacuation_view.py`**: "예측 기준" 선택(기본 / 보수적), 지도도 함께 바뀜
+- **`views/scenario_panel.py`**: 몬테카를로 설정, 실제 기상 데이터 버튼, 실행 모드 자동 선택(evac / optimize / mc / all)
+- **`config/api_keys.example.ini`**: API 키 양식 (실제 키 파일은 git 제외)
+
+### 발표용 핵심 함수 (6단계)
+| 함수 | 설명 |
+|---|---|
+| `run_monte_carlo` (montecarlo.c) | 같은 시나리오를 N번 실행하며 회차마다 비화 시드와 기상 오차를 바꾼다. 셀이 탄 횟수로 연소 확률을, 셀마다 가장 이른 k개 도착 시각으로 보수적 도착 시각을 구한다. |
+| `insert_smallest` (montecarlo.c) | 정렬된 작은 배열에 새 값을 삽입 정렬 방식으로 끼워 넣어 "가장 작은 k개"만 유지한다. 모든 값을 저장하지 않아 메모리를 크게 아낀다. |
+| `conservative_evacuation` (main.c) | 격자의 도착 시각을 보수적 도착 시각으로 잠시 바꿔 대피를 다시 계산하고, 끝나면 원래 값으로 되돌린다. |
+| `latlon_to_grid` (weather_api.py) | 위도·경도를 기상청 5 km 격자 좌표로 바꾸는 람베르트 정각원추 투영 공식이다. |
+| `parse_forecast` (weather_api.py) | 예보 항목을 시각별로 묶어 기온·습도·풍속·풍향 네 값이 모두 있는 시각만 엔진 형식으로 만든다. |
+
+### 결과 예
+- `spring_dry_base` 몬테카를로 100회: 평균 289.0 ha, 표준편차 85.0, 범위 111~495 ha (기준 시뮬레이션 277.6 ha)
+- `spring_danger_valley` 60회: 평균 785.0 ha, 80% 범위 498~1009 ha
+  - 보수적 예측에서는 위험 인원이 8명 → 19명 (산악회 12명의 여유가 +142분 → +5분)
+
+### 검증
+- gcc 엄격 옵션 / clang `-Weverything`: 경고 0개
+- valgrind (`--mode all`, 몬테카를로 12회): 메모리 누수 0
+- 기상 API (이 개발 환경에서는 data.go.kr 접속이 막혀 있어 실제 호출은 못 함):
+  - 격자 변환(서울·부산 값 일치), 발표 시각 선택, 응답 해석(정상·JSON 오류·XML 키 오류), CSV 저장·읽기, 키 숨김을 시험했다.
+  - **실제 호출은 API 키를 넣은 PC에서 확인 필요**
+- GUI offscreen 테스트:
+  - all 모드 실행 → 통계 탭, 보수적 예측 전환, 리포트 저장(HTML + PNG 3장)
+  - 기상 대화상자 파일 불러오기
+  - 저장한 HTML을 Chromium으로 열어 확인
+- **MSVC 빌드, Windows 화면 확인 필요**
