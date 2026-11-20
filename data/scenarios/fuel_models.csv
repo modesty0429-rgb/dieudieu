@@ -1,0 +1,23 @@
+# 연료 모델 표 — C 엔진이 연료 코드별 확산 계산에 사용 (2단계부터 사용)
+# 각 열:
+#   code              연료 코드 (지도 .asc 파일의 값)
+#   name              이름 (영문, 공백 없이)
+#   burnable          탈 수 있으면 1
+#   base_rate_m_min   평지·무풍·건조 기준 기본 확산 속도 (m/분)          [가정]
+#   moisture_ext_pct  소화 수분: 이 수분(%) 이상이면 번지지 않음         [가정, Rothermel 연료모델의 범위(12~40%) 참고]
+#   burn_duration_min 한 칸(30m)이 타는 시간 (분)                       [가정]
+#   wind_coef         바람 계수 kw                                     [가정]
+#   wind_exp          바람 지수 bw                                     [가정, Rothermel 식의 지수 범위 참고]
+#   slope_coef        경사 계수 ks (φs = ks × tan²경사)                  [가정, Rothermel 식의 계수 5.275 참고]
+#   spot_factor       비화 발생 가중치                                   [가정: 소나무림이 비화가 많다는 정성적 사실 반영]
+#   source            값의 근거 (가정 = 팀이 정한 값)
+code,name,burnable,base_rate_m_min,moisture_ext_pct,burn_duration_min,wind_coef,wind_exp,slope_coef,spot_factor,source
+0,none,0,0,0,0,0,0,0,0,-
+1,grass,1,4.0,15,3,0.45,1.3,5.0,0.2,가정
+2,shrub,1,2.0,25,10,0.40,1.3,5.0,0.5,가정
+3,conifer,1,1.2,25,30,0.35,1.3,5.0,1.0,가정
+4,broadleaf,1,0.6,30,25,0.30,1.3,5.0,0.3,가정
+5,mixed,1,0.9,28,28,0.33,1.3,5.0,0.6,가정
+7,road,0,0,0,0,0,0,0,0,-
+8,water,0,0,0,0,0,0,0,0,-
+9,rock,0,0,0,0,0,0,0,0,-

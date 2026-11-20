@@ -1,0 +1,6 @@
+# Python 3.12 기준
+# 설치: python -m pip install -r gui/requirements.txt
+numpy>=1.26        # 격자 계산 (가상 지형 생성, 결과 읽기)
+PySide6>=6.7       # GUI (3단계부터)
+pyqtgraph>=0.13.7  # 빠른 격자 애니메이션 (3단계부터)
+requests>=2.31     # 기상청 API 호출 (6단계부터)

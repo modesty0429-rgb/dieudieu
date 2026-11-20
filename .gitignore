@@ -1,0 +1,23 @@
+# 빌드 결과
+c_core/bin/
+*.obj
+*.exe
+*.pdb
+*.ilk
+.vs/
+x64/
+Debug/
+Release/
+
+# 시뮬레이션 결과 (실행할 때마다 새로 생김)
+output/*
+!output/.gitkeep
+
+# API 키 (절대 올리지 말 것)
+config/api_keys.ini
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
