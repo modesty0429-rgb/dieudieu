@@ -18,6 +18,8 @@
 #include "scenario_io.h"
 #include "map_io.h"
 #include "trail_io.h"
+#include "weather.h"
+#include "fuel_moisture.h"
 #include "grid.h"
 #include "util.h"
 #include "log.h"
@@ -591,8 +593,7 @@ static int validate_ignitions(const Scenario *sc)
             continue;
         }
         cell = &sc->grid.cells[p->y][p->x];
-        if (!cell_is_burnable_state(cell) || cell->fuel_code == FUEL_CODE_NONE ||
-            cell->fuel_code == FUEL_CODE_ROAD) {
+        if (!cell_is_burnable_state(cell) || !cell_fuel_is_burnable(sc, cell)) {
             log_error("발화 지점 %d (%d, %d)는 탈 수 없는 셀임 (연료 코드 %d)",
                       i + 1, p->x, p->y, cell->fuel_code);
             errors++;
@@ -613,8 +614,9 @@ static int validate_ignitions(const Scenario *sc)
  *   1) 기본값 채우기
  *   2) .ini 파일 읽기 (설정값)
  *   3) 설정값끼리 맞는지 검사, 필요한 파일이 있는지 검사
- *   4) 지형 → 연료 → 경사 계산 → 발화 지점 검사
- *   5) 등산로 → 등산객 (있을 때만)
+ *   4) 연료 모델 표 → 지형 → 연료 지도 → 경사 계산 → 발화 지점 검사
+ *   5) 기상
+ *   6) 등산로 → 등산객 (있을 때만)
  * 성공 1, 실패 0. 실패해도 free_scenario를 호출하면 안전하게 정리된다.
  */
 int load_scenario(const char *path, Scenario *sc)
@@ -636,8 +638,8 @@ int load_scenario(const char *path, Scenario *sc)
     }
     log_info("시나리오 '%s' 설정 읽기 완료", sc->name);
 
-    /* 4단계: 지도 */
-    if (!load_terrain(sc) || !load_fuel_map(sc)) {
+    /* 4단계: 연료 모델과 지도 */
+    if (!load_fuel_models(sc) || !load_terrain(sc) || !load_fuel_map(sc) || !check_map_fuels_defined(sc)) {
         return 0;
     }
     compute_slope_aspect(&sc->grid);
@@ -645,7 +647,12 @@ int load_scenario(const char *path, Scenario *sc)
         return 0;
     }
 
-    /* 5단계: 등산로와 등산객 */
+    /* 5단계: 기상 */
+    if (!load_scenario_weather(sc)) {
+        return 0;
+    }
+
+    /* 6단계: 등산로와 등산객 */
     if (sc->trail_file[0] != '\0') {
         if (!load_trail_graph(sc->trail_file, &sc->grid, &sc->trails)) {
             return 0;
@@ -663,9 +670,7 @@ int load_scenario(const char *path, Scenario *sc)
 void free_scenario(Scenario *sc)
 {
     grid_free(&sc->grid);
-    free(sc->weather.records);
-    sc->weather.records = NULL;
-    sc->weather.count = 0;
+    free_weather_series(&sc->weather);
     free_trail_graph(&sc->trails);
     free_hikers(sc->hikers, sc->hiker_count);
     sc->hikers = NULL;

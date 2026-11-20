@@ -6,7 +6,7 @@
 - **C 계산 엔진** (`c_core/`, `wildfire.exe`): 지도 읽기, 확산 시뮬레이션, 대피 경로, 진화 전략 등 모든 계산
 - **Python GUI** (`gui/`): 화면, 애니메이션, 기상 API 다운로드, 가상 지형 생성
 
-> 현재 진행 상황: **1단계 완료** (C 데이터 구조 + 지도·설정 읽기 + 콘솔 지도 출력)
+> 현재 진행 상황: **2단계 완료** (확산 엔진 + 결과 파일 저장)
 > 전체 설계는 [`docs/PROJECT_SPECIFICATION.md`](docs/PROJECT_SPECIFICATION.md), 단계별 기록은 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
 ---
@@ -83,9 +83,11 @@ build.bat
 cd c_core && ./build.sh
 ```
 
-## 4. 실행 (1단계)
+## 4. 실행
 
 `c_core` 폴더에서 실행합니다.
+
+### 4-1. 지도 확인 (printmap)
 
 ```bat
 bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode printmap
@@ -100,21 +102,56 @@ bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode printmap
 
 | 옵션 | 설명 |
 |---|---|
-| `--mode printmap` | 지도·요약 출력 (1단계에서 사용할 수 있는 모드) |
-| `--mode run / evac / optimize / mc / all` | 2단계 이후에 구현 |
+| `--mode printmap` | 지도·요약 출력 |
+| `--mode run` | 산불 확산 시뮬레이션 + 결과 저장 |
+| `--mode evac / optimize / mc / all` | 4단계 이후에 구현 |
+| `--map-every <분>` | run 모드에서 이 간격마다 콘솔에 화재 지도 출력 |
 | `--out <폴더>` | 결과 폴더 지정 |
 | `--seed <정수>` | 난수 시드 지정 |
 | `--step <정수>` | 콘솔 지도에서 몇 칸마다 한 글자를 찍을지 |
 
 종료 코드: `0` 성공, `1` 입력 오류, `2` 메모리 부족, `3` 기타(미구현 모드 등)
 
-### 오류 메시지 확인 (일부러 틀린 시나리오)
+### 4-2. 확산 시뮬레이션 (run)
+
+```bat
+bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode run
+```
+
+콘솔에 30분 간격 통계 표와 마지막 시각의 화재 지도(`@` 연소 중, `x` 전소)가 나오고,
+결과는 시나리오의 `output_dir`(기본: `output/spring_dry_base/`)에 저장됩니다.
+
+| 파일 | 내용 |
+|---|---|
+| `summary.json` | 시나리오·격자 정보, 최종 피해 면적, 비화 횟수, 다른 결과 파일 이름 |
+| `arrival_time.csv` | 셀별 불 도착 시각(분), 도착하지 않았으면 -1 (한 줄 = 격자 한 행, 첫 줄이 북쪽) |
+| `burnout_time.csv` | 셀별 전소 시각(분) |
+| `fire_events.csv` | `time_min,x,y,state` — 상태가 바뀐 셀만 시간순 |
+| `stats.csv` | 10분 간격 통계 (연소 중 셀, 피해 면적, 최대 확산 속도, 비화, 기상, 연료 수분) |
+| `run.log` | 콘솔 로그 사본 |
+
+다른 실험:
+
+```bat
+bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode run --map-every 60
+bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode run --seed 7 --out ..\output\seed7
+bin\wildfire.exe ..\data\scenarios\calm_fixed_weather.ini --mode run
+```
+
+- `--map-every 60`: 1시간마다 화재 지도 출력
+- `--seed 7`: 비화 난수가 바뀌어 결과가 달라짐 (같은 시드는 항상 같은 결과)
+- `calm_fixed_weather.ini`: 바람이 없을 때 → 오르막(북쪽 주봉) 방향으로 더 번지는 것을 확인
+
+계산 모델(수식, 근거/가정 구분)은 [`docs/model.md`](docs/model.md)에 정리했습니다.
+
+### 4-3. 오류 메시지 확인 (일부러 틀린 시나리오)
 
 ```bat
 bin\wildfire.exe ..\data\scenarios\tests\bad_values.ini --mode printmap
 bin\wildfire.exe ..\data\scenarios\tests\bad_ignition.ini --mode printmap
 bin\wildfire.exe ..\data\scenarios\tests\missing_file.ini --mode printmap
 bin\wildfire.exe ..\data\scenarios\tests\bad_trail.ini --mode printmap
+bin\wildfire.exe ..\data\scenarios\tests\bad_weather.ini --mode run
 ```
 
 각각 "몇 번째 줄의 어떤 값이 왜 틀렸는지"를 `[ERROR]` 줄로 알려 주고 종료 코드 1로 끝납니다.
@@ -149,5 +186,9 @@ python tools/count_lines.py
 | Horn 경사 계산 | `map_io.c` `compute_slope_aspect` | Horn, B.K.P. (1981). Hill shading and the reflectance map. *Proc. IEEE* 69(1) |
 | Bresenham 직선 | `trail_io.c` `add_line_cells` | Bresenham, J.E. (1965). Algorithm for computer control of a digital plotter. *IBM Systems Journal* 4(1) |
 | 너비 우선 탐색(BFS) | `trail_io.c` `check_exits_reachable` | 일반적인 그래프 알고리즘 (자료구조 교과서) |
+| Rothermel 확산 모델 (단순화) | `spread_rate.c` | Rothermel, R.C. (1972). USDA Forest Service INT-115 |
+| Simard 평형 수분 | `fuel_moisture.c` | Simard, A.J. (1968). The moisture content of forest fuels |
+| xorshift32 난수 | `rng.c` | Marsaglia, G. (2003). Xorshift RNGs. *J. Stat. Software* 8(14) |
+| Box-Muller 정규 난수 | `rng.c` | Box, G.E.P. & Muller, M.E. (1958). *Ann. Math. Stat.* 29(2) |
 
-2단계 이후 사용할 모델(Rothermel, Simard, Tobler 등)의 출처는 `docs/PROJECT_SPECIFICATION.md` 6장에 있습니다.
+이후 단계에서 쓸 모델(Tobler 보행 함수 등)의 출처는 `docs/PROJECT_SPECIFICATION.md` 6장에 있습니다.

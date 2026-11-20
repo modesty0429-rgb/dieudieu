@@ -272,6 +272,76 @@ void print_map_elevation(const Scenario *sc, int step)
     free_canvas(canvas, rows);
 }
 
+/*
+ * 화재 지도를 출력한다. time_min 시각 기준으로
+ *   불이 붙은 적 없는 셀 → 연료 기호, 연소 중 → '@', 전소 → 'x'
+ * (시뮬레이션이 끝난 뒤에도 도착·전소 시각으로 아무 시각의 모습을 다시 그릴 수 있다)
+ */
+void print_map_fire(const Scenario *sc, int step, double time_min)
+{
+    const Grid *grid = &sc->grid;
+    int         rows = (grid->height + step - 1) / step;
+    int         cols = (grid->width + step - 1) / step;
+    char      **canvas = create_canvas(rows, cols);
+    int         r, c, i;
+
+    if (canvas == NULL) {
+        return;
+    }
+    for (r = 0; r < rows; r++) {
+        for (c = 0; c < cols; c++) {
+            const Cell *cell = &grid->cells[r * step][c * step];
+            char        symbol = fuel_symbol(cell->fuel_code);
+
+            if (cell->state == CELL_FIREBREAK) {
+                symbol = '|';
+            } else if (time_is_set(cell->arrival_time) && cell->arrival_time <= time_min) {
+                int burned_out = time_is_set(cell->burnout_time) && cell->burnout_time <= time_min;
+                symbol = burned_out ? 'x' : '@';
+            }
+            canvas[r][c] = symbol;
+        }
+    }
+    for (i = 0; i < sc->trails.node_count; i++) {
+        put_symbol(canvas, rows, cols, step, sc->trails.nodes[i].x, sc->trails.nodes[i].y,
+                   node_symbol(sc->trails.nodes[i].type));
+    }
+
+    printf("\n=== 화재 지도: 발화 후 %.0f분 (%d칸마다 1글자) ===\n", time_min, step);
+    print_canvas(canvas, rows, cols, step);
+    printf("범례: @연소 중  x전소  |방화선  (나머지는 연료 기호)  P S T J V 등산로 노드\n");
+    fflush(stdout);
+    free_canvas(canvas, rows);
+}
+
+/* 시간별 통계를 every_min 분 간격으로 표로 출력한다. */
+void print_sim_statistics(const SimResult *res, double every_min)
+{
+    double next = 0.0;
+    int    i;
+
+    printf("\n================ 시간별 확산 통계 ================\n");
+    printf("  시각 | 연소 중 | 피해 면적 | 최대 속도 | 비화 | 풍속  풍향 | 습도 | 연료수분\n");
+    printf(" (분)  |  (칸)   |   (ha)    |  (m/분)   | (개) | (m/s)  (°) | (%%)  |   (%%)\n");
+    printf("-------+---------+-----------+-----------+------+------------+------+---------\n");
+    for (i = 0; i < res->step_count; i++) {
+        const StepStats *s = &res->steps[i];
+        if (s->time_min + 1e-9 < next && i != res->step_count - 1) {
+            continue;
+        }
+        printf(" %5.0f | %7d | %9.1f | %9.2f | %4d | %5.1f %4.0f | %4.0f | %7.1f\n",
+               s->time_min, s->burning_cells, s->burned_area_ha, s->max_spread_rate_m_min,
+               s->spot_fires, s->weather.wind_speed_ms, s->weather.wind_dir_deg,
+               s->weather.rh_pct, s->dead_moisture_pct);
+        next = s->time_min + every_min;
+    }
+    printf("-------------------------------------------------\n");
+    printf(" 최종 피해 면적 %.1f ha (%d칸), 최대 확산 속도 %.2f m/분, 비화 %d회, %s\n",
+           res->final_area_ha, res->burned_cells, res->max_spread_rate, res->spot_fire_count,
+           res->fire_out ? "시간 안에 진화(자연 소멸)" : "시뮬레이션 종료 시점에도 연소 중");
+    fflush(stdout);
+}
+
 /* ================================================================
  * 요약 출력
  * ================================================================ */

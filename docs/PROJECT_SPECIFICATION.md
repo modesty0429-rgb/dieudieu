@@ -366,8 +366,8 @@ typedef struct {
 | `int load_scenario(const char *path, Scenario *sc)` | scenario_io.c | `.ini`를 한 줄씩 읽어 `[구역]`과 `키 = 값`을 해석해 구조체에 채운다. 이어서 지도·연료·기상·등산로 파일을 차례로 불러오고, 범위를 벗어난 값이 있으면 줄 번호와 함께 오류를 알린다. |
 | `void compute_slope_aspect(Grid *g)` | map_io.c | 각 셀의 주변 고도 차이로 경사(도)와 경사 방향을 계산한다 (Horn 방법). |
 | `void update_fuel_moisture(Scenario *sc, double t, double dt)` | fuel_moisture.c | 현재 기온·습도로 평형수분을 구하고, 연료 수분이 그 값을 향해 천천히 따라가게 한다. 남향 사면은 더 건조하게 보정한다. |
-| `double compute_spread_rate(const Grid*, int x, int y, int dir, const FuelModel*, const WeatherRecord*)` | spread_rate.c | 한 셀에서 이웃 방향으로 불이 번지는 속도(m/분)를 `기본 속도 × 수분 감쇠 × (1 + 바람 계수 + 경사 계수)`로 계산한다. |
-| `int simulate_fire_step(Scenario *sc, double t, double dt, Rng *rng, SimResult *res)` | spread_sim.c | 연소 중인 모든 셀이 8방향으로 `속도×dt`만큼 불을 밀어내고, 누적 거리가 이웃까지의 거리를 넘으면 그 이웃에 불을 붙이며 도착 시각을 기록한다. 다 탄 셀은 전소로 바꾸고, 비화를 확률적으로 처리한다. |
+| `double compute_spread_rate(const Scenario*, int x, int y, int dir, const WeatherRecord*, SpreadFactors*)` | spread_rate.c | 한 셀에서 이웃 방향으로 불이 번지는 속도(m/분)를 `기본 속도 × 수분 감쇠 × (1 + 바람 계수 + 경사 계수)`로 계산한다. |
+| `int simulate_fire_step(Scenario*, FireState*, double t, double dt, const WeatherRecord*, Rng*, SimResult*, const SimOptions*)` | spread_sim.c | 연소 중인 모든 셀이 8방향으로 `속도×dt`만큼 불을 밀어내고, 누적 거리가 이웃까지의 거리를 넘으면 그 이웃에 불을 붙이며 도착 시각을 기록한다. 다 탄 셀은 전소로 바꾸고, 비화를 확률적으로 처리한다. |
 | `int run_monte_carlo(Scenario *sc, double *burn_prob, MCSummary *out)` | montecarlo.c | 시드와 기상 오차를 바꿔 같은 시나리오를 N번 반복하고, 셀별로 "탄 횟수 / N"을 연소 확률로 저장한다. |
 | `Route find_safest_route(const Scenario *sc, int start, double start_time, double speed_kmh)` | evac_route.c | 등산로 그래프에서 대피소·주차장까지 경로를 찾는다. 각 지점에서 "불 도착 시각 − 내가 지나는 시각"(안전 여유)을 계산해, 여유의 최솟값이 가장 큰 경로를 고른다(같으면 빠른 경로). |
 | `AlertLevel assess_alert_level(const Scenario*, const Hiker*, double now)` | evac_alert.c | 등산객 주변에 불이 도착하기까지 남은 시간을 설정값과 비교해 주의/대피 준비/즉시 대피/고립 단계를 판정한다. |
@@ -598,6 +598,8 @@ R(방향) = R0(연료) × η_M × (1 + φ_w + φ_s)
 - `φ_s`: 오르막이면 `ks × tan²(경사각)` (Rothermel의 경사 항 형태), 내리막이면 절반 감소. [형태 근거 / 계수 가정]
 
 ### 6-3. 격자 확산 (시간 단계 방식)
+
+> 2단계 구현 시 추가: 화선(front)과 연소(burning) 목록을 분리, 대각선 차단 규칙 — 자세한 내용은 `docs/model.md` 7장
 - 매 단계(`dt` = 1분) 연소 중인 셀이 8방향으로 `R × dt`씩 `progress[dir]`를 늘림.
 - `progress ≥ 이웃까지 거리`(직선 30m, 대각선 42.4m)가 되면 이웃 점화, 넘친 거리만큼 시각을 보정해 `arrival_time` 기록.
 - 점화 후 `burn_duration_min`이 지나면 전소. 방화선·물·바위·살수 중인 셀은 점화 안 됨.

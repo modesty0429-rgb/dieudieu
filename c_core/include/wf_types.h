@@ -284,10 +284,65 @@ typedef struct {
     Grid          grid;
     FuelModel     fuels[WF_MAX_FUELS];
     int           fuel_count;
+    int           fuel_index[WF_MAX_FUELS]; /* fuel_index[연료코드] = fuels 배열 위치, 없으면 -1 */
     WeatherSeries weather;
     TrailGraph    trails;
     Hiker        *hikers;       /* 등산객 배열 (동적 할당) */
     int           hiker_count;
 } Scenario;
+
+/* ================================================================
+ * 7. 시뮬레이션 결과
+ * ================================================================ */
+
+/* 출력 간격마다 기록하는 통계 한 줄 */
+typedef struct {
+    double time_min;               /* 시각 (분) */
+    int    burning_cells;          /* 연소 중인 셀 수 */
+    int    burned_cells;           /* 불이 지나간 셀 수 (연소 중 + 전소) */
+    double burned_area_ha;         /* 피해 면적 (ha) */
+    double max_spread_rate_m_min;  /* 이번 구간에서 가장 빠른 확산 속도 (m/분) */
+    int    spot_fires;             /* 지금까지 비화로 생긴 불 수 */
+    double dead_moisture_pct;      /* 죽은 연료 수분 (%) */
+    WeatherRecord weather;         /* 이 시각의 기상 */
+} StepStats;
+
+/* 셀 상태가 바뀐 사건 하나 (애니메이션 재생용) */
+typedef struct {
+    double    time_min;
+    int       x, y;
+    CellState new_state;
+} FireEvent;
+
+/* 몬테카를로에서 기상에 더할 오차 (일반 실행에서는 모두 0) */
+typedef struct {
+    double wind_speed_ms;
+    double wind_dir_deg;
+    double rh_pct;
+} WeatherOffset;
+
+/* 시뮬레이션 실행 옵션 */
+typedef struct {
+    WeatherOffset offset;          /* 기상 오차 */
+    int           record_events;   /* 1이면 FireEvent 기록 */
+    int           quiet;           /* 1이면 진행 로그 생략 (반복 실험용) */
+    double        map_every_min;   /* 0보다 크면 이 간격(분)마다 콘솔에 화재 지도 출력 */
+} SimOptions;
+
+/* 시뮬레이션 한 번의 결과 */
+typedef struct {
+    StepStats *steps;              /* 출력 간격별 통계 (동적 배열) */
+    int        step_count;
+    int        step_capacity;
+    FireEvent *events;             /* 상태 변화 기록 (동적 배열) */
+    int        event_count;
+    int        event_capacity;
+    int        burned_cells;       /* 최종 피해 셀 수 */
+    double     final_area_ha;      /* 최종 피해 면적 (ha) */
+    int        spot_fire_count;    /* 비화로 생긴 불 수 */
+    double     max_spread_rate;    /* 전체에서 가장 빠른 확산 속도 (m/분) */
+    double     end_time_min;       /* 시뮬레이션이 끝난 시각 */
+    int        fire_out;           /* 시간 안에 불이 완전히 꺼졌으면 1 */
+} SimResult;
 
 #endif /* WF_TYPES_H */

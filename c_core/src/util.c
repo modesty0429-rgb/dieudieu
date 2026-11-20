@@ -2,12 +2,22 @@
  * util.c
  * 여러 모듈에서 함께 쓰는 작은 도우미 함수 모음.
  */
+#ifndef _WIN32
+#define _POSIX_C_SOURCE 200809L   /* macOS/Linux에서 mkdir 함수를 쓰기 위해 필요 */
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <math.h>
+
+#ifdef _WIN32
+#include <direct.h>       /* _mkdir (Windows 기본 라이브러리) */
+#else
+#include <sys/stat.h>     /* mkdir (macOS/Linux) */
+#endif
 
 #include "util.h"
 #include "log.h"
@@ -314,9 +324,73 @@ int parse_datetime(const char *text, DateTime *out)
     return 1;
 }
 
+/*
+ * 1900-01-01 00:00 부터 dt 까지 몇 분이 지났는지 계산한다.
+ * 두 시각의 차이(분)를 구할 때 쓴다. 예) 기상 기록 시각 - 시뮬레이션 시작 시각
+ */
+long datetime_to_minutes(const DateTime *dt)
+{
+    long days = 0;
+    int  year, month;
+
+    for (year = 1900; year < dt->year; year++) {
+        days += (days_in_month(year, 2) == 29) ? 366 : 365;
+    }
+    for (month = 1; month < dt->month; month++) {
+        days += days_in_month(dt->year, month);
+    }
+    days += dt->day - 1;
+    return days * 24L * 60L + dt->hour * 60L + dt->minute;
+}
+
+/* DateTime을 "2026-04-05 13:00" 형식 문자열로 만든다. */
+void format_datetime(const DateTime *dt, char *out, size_t out_size)
+{
+    snprintf(out, out_size, "%04d-%02d-%02d %02d:%02d",
+             dt->year, dt->month, dt->day, dt->hour, dt->minute);
+}
+
 /* ================================================================
  * 파일 경로
  * ================================================================ */
+
+/* 폴더 하나를 만든다. 이미 있어도 성공으로 본다. */
+static int make_one_directory(const char *path)
+{
+    int result;
+#ifdef _WIN32
+    result = _mkdir(path);
+#else
+    result = mkdir(path, 0755);
+#endif
+    return result == 0 || errno == EEXIST;
+}
+
+/*
+ * 중간 폴더까지 모두 만든다. 예: "output/run1/frames" → output, output/run1, output/run1/frames
+ * 경로를 앞에서부터 훑으며 '/' 나 '\' 를 만날 때마다 그 앞부분까지 폴더를 만든다.
+ * 성공 1, 실패 0
+ */
+int make_directories(const char *path)
+{
+    char   partial[WF_PATH_MAX];
+    size_t i;
+    size_t length = strlen(path);
+
+    if (length == 0 || length >= sizeof(partial)) {
+        return 0;
+    }
+    for (i = 0; i < length; i++) {
+        partial[i] = path[i];
+        partial[i + 1] = '\0';
+        if ((path[i] == '/' || path[i] == '\\') && i > 0 && path[i - 1] != ':') {
+            partial[i] = '\0';
+            make_one_directory(partial);
+            partial[i] = path[i];
+        }
+    }
+    return make_one_directory(path);
+}
 
 /* 파일을 읽기용으로 열 수 있으면 1 */
 int file_exists(const char *path)
@@ -441,4 +515,13 @@ int max_int(int a, int b)
 int abs_int(int value)
 {
     return (value < 0) ? -value : value;
+}
+
+/*
+ * 시각 값이 기록돼 있으면 1. "아직 없음"은 WF_NO_TIME(-1)으로 저장하므로 0 이상인지 본다.
+ * (실수는 == 로 비교하면 작은 오차 때문에 틀릴 수 있어 크기 비교를 쓴다)
+ */
+int time_is_set(double time_min)
+{
+    return time_min >= 0.0;
 }
