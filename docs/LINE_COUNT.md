@@ -4,9 +4,9 @@
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
-| C | 9016 | 약 8,000 | 113% |
-| Python | 4371 | 약 4,000 | 109% |
-| **합계** | **13387** | **약 12,000** | **112%** |
+| C | 9023 | 약 8,000 | 113% |
+| Python | 4436 | 약 4,000 | 111% |
+| **합계** | **13459** | **약 12,000** | **112%** |
 
 ## C
 
@@ -46,7 +46,7 @@
 | `c_core/src/hiker.c` | 191 | 137 | 38 | 16 |
 | `c_core/src/log.c` | 145 | 101 | 23 | 21 |
 | `c_core/src/main.c` | 463 | 363 | 59 | 41 |
-| `c_core/src/map_io.c` | 440 | 322 | 77 | 41 |
+| `c_core/src/map_io.c` | 447 | 322 | 84 | 41 |
 | `c_core/src/montecarlo.c` | 280 | 213 | 40 | 27 |
 | `c_core/src/output_csv.c` | 181 | 134 | 31 | 16 |
 | `c_core/src/output_json.c` | 576 | 468 | 49 | 59 |
@@ -61,7 +61,7 @@
 | `c_core/src/trail_io.c` | 697 | 535 | 97 | 65 |
 | `c_core/src/util.c` | 527 | 380 | 91 | 56 |
 | `c_core/src/weather.c` | 255 | 184 | 46 | 25 |
-| **합계** | **9016** | **6616** | **1466** | **934** |
+| **합계** | **9023** | **6616** | **1473** | **934** |
 
 ## Python
 
@@ -70,8 +70,8 @@
 | `gui/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/main.py` | 36 | 18 | 7 | 11 |
 | `gui/services/__init__.py` | 0 | 0 | 0 | 0 |
-| `gui/services/app_config.py` | 43 | 23 | 9 | 11 |
-| `gui/services/engine_runner.py` | 154 | 100 | 23 | 31 |
+| `gui/services/app_config.py` | 62 | 31 | 16 | 15 |
+| `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
 | `gui/services/map_render.py` | 110 | 60 | 30 | 20 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
 | `gui/services/result_loader.py` | 412 | 303 | 34 | 75 |
@@ -81,7 +81,7 @@
 | `gui/services/weather_api.py` | 236 | 153 | 46 | 37 |
 | `gui/theme.py` | 188 | 155 | 19 | 14 |
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
-| `gui/views/evacuation_view.py` | 205 | 168 | 10 | 27 |
+| `gui/views/evacuation_view.py` | 212 | 174 | 11 | 27 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
 | `gui/views/main_window.py` | 279 | 215 | 30 | 34 |
 | `gui/views/map_view.py` | 439 | 342 | 48 | 49 |
@@ -92,5 +92,5 @@
 | `gui/views/suppression_view.py` | 223 | 178 | 15 | 30 |
 | `gui/views/weather_dialog.py` | 157 | 128 | 9 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
-| `tools/run_tests.py` | 205 | 148 | 22 | 35 |
-| **합계** | **4371** | **3128** | **585** | **658** |
+| `tools/run_tests.py` | 232 | 167 | 28 | 37 |
+| **합계** | **4436** | **3170** | **600** | **666** |

@@ -227,7 +227,7 @@ class ScenarioPanel(QScrollArea):
     def _build_montecarlo_group(self) -> QGroupBox:
         group = QGroupBox("몬테카를로")
         form = QFormLayout(group)
-        self.include_montecarlo = QCheckBox("반복 실험 포함 (100회 약 5~10초)")
+        self.include_montecarlo = QCheckBox("반복 실험 포함 (100회 약 30~45초)")
         self.mc_runs = QSpinBox()
         self.mc_runs.setRange(10, 1000)
         self.mc_runs.setSingleStep(10)
@@ -296,7 +296,7 @@ class ScenarioPanel(QScrollArea):
     def _load_scenario_values(self, path: Path) -> None:
         """기본 시나리오 파일의 값으로 입력 칸을 채운다."""
         ini = read_ini(path)
-        self.duration.setValue(int(ini.getfloat("time", "duration_min", fallback=360)))
+        self.duration.setValue(int(ini.getfloat("time", "duration_min", fallback=600)))
         self.seed.setValue(ini.getint("spread", "random_seed", fallback=42))
         self.spotting.setChecked(ini.getint("spread", "spotting_enabled", fallback=1) == 1)
         fixed = ini.get("weather", "mode", fallback="file").strip().lower() == "fixed"

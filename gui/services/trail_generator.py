@@ -1,7 +1,7 @@
 """
 가상 등산로·등산객 파일 생성기
 
-terrain_generator.py 가 만드는 가상 산(기본 200 x 200 칸)에 맞춘 등산로 그래프와
+terrain_generator.py 가 만드는 가상 산(기본 300 x 300 칸)에 맞춘 등산로 그래프와
 등산객 목록을 C 엔진이 읽는 텍스트 형식으로 저장한다.
 
     - <이름>_trails.txt : NODE / EDGE 줄
@@ -94,7 +94,7 @@ def write_hikers(path: Path) -> None:
 def main() -> None:
     project_root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description="가상 등산로·등산객 파일 생성기")
-    parser.add_argument("--size", type=int, default=200, help="지도 격자 크기 (기본 200)")
+    parser.add_argument("--size", type=int, default=300, help="지도 격자 크기 (기본 300, terrain_generator 와 같게)")
     parser.add_argument("--name", default="virtual", help="파일 이름 앞부분")
     parser.add_argument("--out", type=Path, default=project_root / "data" / "trails", help="저장 폴더")
     args = parser.parse_args()

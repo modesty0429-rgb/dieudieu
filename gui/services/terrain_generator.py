@@ -7,7 +7,7 @@ C 엔진이 읽는 ESRI ASCII Grid(.asc) 파일 두 개로 저장한다.
     - <이름>_elev.asc : 고도 (m)
     - <이름>_fuel.asc : 연료 코드 (fuel_models.csv 참고)
 
-지형 요소는 기본 크기 200 x 200 칸 기준 좌표로 정의하고, 다른 크기로 만들면 비율에 맞춰 늘린다.
+지형 요소는 200 x 200 칸 기준 좌표로 정의하고, 실제 크기(기본 300)에 맞춰 비율대로 늘린다.
 
 실행 예:
     python gui/services/terrain_generator.py
@@ -235,7 +235,7 @@ def generate(out_dir: Path, name: str, size: int, cell_size: float, seed: int,
 def main() -> None:
     project_root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description="가상 산 지형·연료 격자 생성기")
-    parser.add_argument("--size", type=int, default=200, help="격자 가로·세로 칸 수 (기본 200)")
+    parser.add_argument("--size", type=int, default=300, help="격자 가로·세로 칸 수 (기본 300 = 9 km)")
     parser.add_argument("--cell", type=float, default=30.0, help="칸 크기 m (기본 30)")
     parser.add_argument("--seed", type=int, default=2026, help="난수 시드 (기본 2026)")
     parser.add_argument("--max-elev", type=float, default=950.0, help="가장 높은 봉우리 고도 m (기본 950)")

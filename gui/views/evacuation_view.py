@@ -198,8 +198,15 @@ class EvacuationView(QWidget):
                          + (f"도착 {hiker.finish_time:.0f}분" if hiker.status == "SAFE"
                             else f"<span style='color:{theme.ERROR}'>{hiker.finish_time:.0f}분에 고립</span>"))
             if hiker.min_margin is not None and hiker.min_margin < 0:
+                # 출발이 "신고 시각"에 묶였는지, "대피 준비 경보 시각"이었는지에 따라 원인이 다르다
+                notify = self.evacuation.settings["notify_delay_min"]
+                if abs(hiker.depart_time - notify) < 0.5:
+                    advice = (f"산불 발견·신고가 늦어(발화 후 {notify:.0f}분) 그때 바로 출발했지만 이미 늦었습니다. "
+                              f"경보 기준보다 조기 발견이 중요합니다.")
+                else:
+                    advice = "대피 준비 경보 기준(prepare_min)을 앞당기면 결과가 달라질 수 있습니다."
                 lines.append(f"<span style='color:{theme.ERROR}'>출발 시점에 이미 모든 경로가 위험합니다. "
-                             f"대피 준비 기준을 앞당기면 결과가 달라질 수 있습니다.</span>")
+                             f"{advice}</span>")
         else:
             lines.append("시작 위치 주변에 불이 오지 않아 대피가 필요 없었습니다. (참고용 경로)")
         self.detail.setHtml("<br>".join(lines))

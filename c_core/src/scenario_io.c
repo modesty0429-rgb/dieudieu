@@ -51,7 +51,7 @@ void scenario_set_defaults(Scenario *sc)
     sc->start_time.hour = 13;
     sc->start_time.minute = 0;
 
-    sc->sim.duration_min = 360.0;
+    sc->sim.duration_min = 600.0;
     sc->sim.time_step_min = 1.0;
     sc->sim.output_interval_min = 10.0;
     sc->sim.random_seed = 42;
