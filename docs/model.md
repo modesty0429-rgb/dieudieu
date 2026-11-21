@@ -283,9 +283,11 @@ v = 평지 속도 × e^(−3.5 × |기울기 + 0.05|) / e^(−3.5 × 0.05)
 
 | 시나리오 | 대응 없음 | 방화선 | 헬기 | 방화선 + 헬기 |
 |---|---|---|---|---|
-| 기본 (`spring_dry_base`) 피해 | 584.3 ha | 167.8 ha (−71.3%) | 292.9 ha (−49.9%) | **4.1 ha (−99.3%)** |
-| 위험 (`spring_danger_valley`) 피해 | 2,783.7 ha | 2,570.3 ha (−7.7%) | 2,583.1 ha (−7.2%) | 2,369.2 ha (−14.9%) |
+| 기본 (`spring_dry_base`) 피해 | 584.3 ha | 167.8 ha (−71.3%) | 297.6 ha (−49.1%) | **4.9 ha (−99.2%)** |
+| 위험 (`spring_danger_valley`) 피해 | 2,783.7 ha | 2,570.3 ha (−7.7%) | 2,607.3 ha (−6.3%) | 2,373.5 ha (−14.7%) |
 | 위험 사례 위험 등산객 | 2팀 7명 | 1팀 4명 | 1팀 4명 | 1팀 4명 |
+
+(8단계 낮/밤 반영 후 수치. 일몰 뒤 헬기 출동 중지(헬기 전략): 기본 24회, 위험 18회. 확산·대피 결과는 낮/밤 반영 전과 같다)
 
 - **기본 시나리오**: 방화선만으로 피해가 70% 넘게 준다.
   - 헬기를 고려해 고른 방화선(55칸)과 헬기를 함께 쓰면 99% 넘게 준다.
@@ -327,6 +329,45 @@ v = 평지 속도 × e^(−3.5 × |기울기 + 0.05|) / e^(−3.5 × 0.05)
 | 한계 | 5 km 격자의 평균 예보이므로 산 정상·계곡의 국지 바람과 차이가 있다. 몬테카를로의 기상 오차로 일부 반영한다 |
 | 키 관리 | `config/api_keys.ini`(git 제외). 오류 메시지에서 키를 가려서 보여 준다 |
 
+## 14. 낮/밤 (daylight.c) — 8단계
+
+### 14-1. 태양 고도
+NOAA "General Solar Position Calculations"의 근사식(Spencer 1971 푸리에 급수)으로 시뮬레이션 시각마다 해의 높이를 구한다.
+
+```
+γ   = 2π/365 × (그해의 날짜 − 1 + (시 − 12)/24)                연중 각도
+EoT = 229.18 × (0.000075 + 0.001868 cosγ − 0.032077 sinγ − 0.014615 cos2γ − 0.040849 sin2γ)   균시차(분)
+δ   = 0.006918 − 0.399912 cosγ + 0.070257 sinγ − 0.006758 cos2γ + 0.000907 sin2γ − 0.002697 cos3γ + 0.00148 sin3γ  적위
+진태양시 = 시계 시각 + EoT + 4 × 경도 − 60 × 표준시          (분)
+시간각 H = 진태양시 / 4 − 180                                   (도, 정오 = 0)
+sin(고도) = sin(위도)·sin(δ) + cos(위도)·cos(δ)·cos(H)
+```
+
+- 일출·일몰 기준 고도 −0.833° (대기 굴절 + 해의 반지름), 시민박명 끝 −6° [근거: 천문 관례]
+- 검증: 2026-04-05, 북위 37.5° 동경 127°의 일몰 18:57, 박명 끝 19:24. 천문 계산 라이브러리(astral)와 1분 이내로 일치.
+  12월 21일 일출 07:43·일몰 17:17도 1분 이내.
+- 가상 산의 위치는 [가정] 북위 37.5°, 동경 127.0° (중부 지방). 시나리오 `[daylight]`에서 바꿀 수 있다.
+
+### 14-2. 계산에 반영하는 것
+| 효과 | 내용 | 근거 |
+|---|---|---|
+| 밤 보행 속도 | 해 고도 ≥ −0.833°이면 Tobler 속도 그대로, ≤ −6°이면 × `night_walk_factor`(기본 0.6), 그 사이(박명)는 직선 | [가정] 헤드랜턴에 의지해 걷는 속도 |
+| 헬기 야간 중지 | 해가 지평선 아래면 헬기가 출동하지 않음. 출동 간격은 계속 세어 일출 후 다시 출동 | [근거] 국내 산불 진화 헬기는 일몰 후 철수, 일출 후 재투입 |
+| 불의 확산 | 따로 바꾸지 않음. 밤에 기온이 내려가고 습도가 올라 느려지는 효과는 시간별 기상 파일이 이미 반영 | 기상 파일 |
+
+- 대피 경로 탐색(`walk_edge`)과 실제 이동(`build_hiker_track`)이 모두 "그 시각의 밝기"로 걸린 시간을 계산하므로, 같은 길이라도 해가 진 뒤에 걸으면 오래 걸리고 안전 여유가 줄어든다.
+- 결과 파일: `stats.csv`에 `sun_elevation_deg`, `daylight`(0 밤 ~ 1 낮) 열, `summary.json`에 `daylight`(설정, 일몰·일출 시각), `evacuation.json` 팀마다 `dark_walk_min`, `suppression.json` 전략마다 `heli_grounded`.
+
+### 14-3. 실험 결과 (`evening_valley.ini`, 17:00 발화, 남서풍 11 m/s, 신고 100분 지연, 9 km 지도)
+| | 낮/밤 반영 | 반영 안 함 |
+|---|---|---|
+| 대피 결과 | 완료 4팀, **고립 1팀** | 완료 5팀, 고립 0팀 |
+| 헬기 살수 (헬기 전략) | **0회** (첫 출동 가능 시각 19:10이 이미 일몰 뒤 → 24회 모두 중지) | 24회 |
+| 헬기 전략 피해 면적 | 1,661.0 ha (대응 없음과 같음) | 1,465.5 ha |
+| 방화선 + 헬기 피해 면적 | 702.0 ha (방화선만과 같음) | 667.3 ha |
+
+→ "같은 불이라도 저녁에 나면 사람이 할 수 있는 일이 줄어 더 위험하다"는 것을 수치로 보여 준다.
+
 ## 참고 문헌
 
 - Rothermel, R.C. (1972). *A mathematical model for predicting fire spread in wildland fuels.* USDA Forest Service Research Paper INT-115.
@@ -337,3 +378,4 @@ v = 평지 속도 × e^(−3.5 × |기울기 + 0.05|) / e^(−3.5 × 0.05)
 - Tobler, W. (1993). *Three presentations on geographical analysis and modeling.* NCGIA Technical Report 93-1.
 - Dijkstra, E.W. (1959). A note on two problems in connexion with graphs. *Numerische Mathematik* 1, 269–271.
 - Bresenham, J.E. (1965). Algorithm for computer control of a digital plotter. *IBM Systems Journal* 4(1).
+- NOAA Global Monitoring Laboratory. General Solar Position Calculations. (Spencer, J.W. (1971). Fourier series representation of the position of the sun. *Search* 2(5))

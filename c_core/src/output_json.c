@@ -14,6 +14,7 @@
 #include "evac_alert.h"
 #include "evac_route.h"
 #include "suppression.h"
+#include "daylight.h"
 #include "wf_config.h"
 #include "util.h"
 #include "log.h"
@@ -168,6 +169,39 @@ void json_bool(JsonWriter *w, const char *key, int value)
  * ================================================================ */
 
 /*
+ * (8단계) 낮/밤 정보: 설정값과 시뮬레이션 기간의 일몰·박명·일출 시각.
+ * GUI는 이 시각으로 지도를 어둡게 하고 재생 시계에 해·달을 표시한다.
+ */
+static void write_daylight_json(JsonWriter *w, const Scenario *sc, double end_min)
+{
+    DayEvent events[MAX_DAY_EVENTS];
+    int      count = sc->daylight.enabled ? find_day_events(sc, end_min, events, MAX_DAY_EVENTS) : 0;
+    int      i;
+    char     clock[8];
+
+    json_begin_object(w, "daylight");
+    json_bool(w, "enabled", sc->daylight.enabled);
+    json_number(w, "latitude_deg", sc->daylight.latitude_deg);
+    json_number(w, "longitude_deg", sc->daylight.longitude_deg);
+    json_number(w, "utc_offset_h", sc->daylight.utc_offset_h);
+    json_number(w, "night_walk_factor", sc->daylight.night_walk_factor);
+    json_bool(w, "heli_day_only", sc->daylight.heli_day_only);
+    json_number(w, "start_sun_elevation_deg", solar_elevation_deg(sc, 0.0));
+    json_begin_array(w, "events");
+    for (i = 0; i < count; i++) {
+        format_clock_at(sc, events[i].time_min, clock, sizeof(clock));
+        json_begin_object(w, NULL);
+        json_string(w, "type", day_event_key(events[i].type));
+        json_string(w, "label", day_event_label(events[i].type));
+        json_number(w, "time_min", events[i].time_min);
+        json_string(w, "clock", clock);
+        json_end_object(w);
+    }
+    json_end_array(w);
+    json_end_object(w);
+}
+
+/*
  * summary.json: 시나리오 정보, 격자 정보, 최종 결과, 생성한 파일 목록.
  * Python GUI는 이 파일을 먼저 읽고, 여기에 적힌 파일 이름으로 나머지 결과를 찾는다.
  */
@@ -198,6 +232,8 @@ int write_summary_json(const char *path, const Scenario *sc, const SimResult *re
     json_string(&w, "weather_mode", sc->weather_mode == WEATHER_FIXED ? "fixed" : "file");
     json_string(&w, "weather_file", sc->weather_file);
     json_end_object(&w);
+
+    write_daylight_json(&w, sc, res->end_time_min > 0.0 ? res->end_time_min : sc->sim.duration_min);
 
     json_begin_object(&w, "grid");
     json_int(&w, "width", sc->grid.width);
@@ -298,6 +334,7 @@ static void write_hiker_json(JsonWriter *w, const Scenario *sc, const Hiker *h)
     json_int(w, "start_node", g->nodes[h->start_node].id);
     json_string(w, "start_name", g->nodes[h->start_node].name);
     json_bool(w, "needs_evacuation", time_is_set(h->depart_time_min));
+    json_number(w, "dark_walk_min", h->dark_walk_min);
     json_number(w, "depart_time_min", time_is_set(h->depart_time_min) ? h->depart_time_min : -1.0);
     json_number(w, "finish_time_min", time_is_set(h->finish_time_min) ? h->finish_time_min : -1.0);
     json_string(w, "status", hiker_status_name(h->status));
@@ -486,6 +523,7 @@ int write_suppression_json(const char *path, const Scenario *sc, const Suppressi
         json_int(&w, "at_risk_hikers", s->evac.at_risk_hikers);
         json_int(&w, "at_risk_people", s->evac.at_risk_people);
         json_int(&w, "trapped_hikers", s->evac.trapped);
+        json_int(&w, "heli_grounded", s->heli_grounded);
         snprintf(name, sizeof(name), "suppression_%s_arrival.csv", s->key);
         json_string(&w, "arrival_file", name);
         snprintf(name, sizeof(name), "suppression_%s_burnout.csv", s->key);

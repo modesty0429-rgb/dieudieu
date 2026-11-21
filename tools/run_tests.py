@@ -10,6 +10,7 @@
           같은 시드로 두 번 실행하면 결과가 같은지 (재현성)
           경계 조건 (등산객 없음, 진화 자원 0, 불이 안 붙음, 젖은 연료)
           줄바꿈 형식 (LF / CRLF 입력 파일에서 같은 결과)
+          낮/밤 (일몰 시각, 밤 헬기 출동 중지, 밤 보행 기록, 잘못된 설정값)
   [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기
 
 결과는 항목마다 "통과 / 실패"로 출력되고, 하나라도 실패하면 종료 코드 1.
@@ -152,6 +153,56 @@ def test_line_endings(tmp: Path) -> None:
     check("LF·CRLF 결과가 같음", len(results_by_style) == 2 and len(set(results_by_style.values())) == 1)
 
 
+def test_daylight(tmp: Path) -> None:
+    """
+    (8단계) 낮/밤: 일몰 시각 계산, 밤 헬기 출동 중지, 밤 보행 속도, 잘못된 설정값.
+    evening_valley.ini 를 [daylight] enabled = 1 / 0 으로 각각 실행해 비교한다.
+    """
+    import json
+    print("\n[엔진] 낮/밤 (8단계)")
+
+    out_on = tmp / "daylight_on"
+    code, text = run_engine(SCENARIOS / "evening_valley.ini", "optimize", out_on)
+    summary = json.loads((out_on / "summary.json").read_text(encoding="utf-8")) if code == 0 else {}
+    events = summary.get("daylight", {}).get("events", [])
+    sunset = next((e for e in events if e["type"] == "sunset"), None)
+    # 2026-04-05, 북위 37.5° 동경 127° 의 일몰은 약 18:57 (천문 계산 라이브러리 astral 과 1분 이내로 일치)
+    check("일몰 시각 계산 (4월 5일 중부 지방 약 18:57)",
+          sunset is not None and "18:54" <= sunset["clock"] <= "19:00", f"계산 결과 {sunset}")
+
+    off_copy = SCENARIOS / "zz_test_daylight_off.ini"
+    try:
+        text_off = (SCENARIOS / "evening_valley.ini").read_text(encoding="utf-8")
+        off_copy.write_text(text_off.replace("enabled           = 1", "enabled           = 0"), encoding="utf-8")
+        out_off = tmp / "daylight_off"
+        run_engine(off_copy, "optimize", out_off)
+    finally:
+        off_copy.unlink(missing_ok=True)
+
+    def strategy(out: Path, key: str) -> dict:
+        data = json.loads((out / "suppression.json").read_text(encoding="utf-8"))
+        return next(s for s in data["strategies"] if s["key"] == key)
+
+    def hikers(out: Path) -> list[dict]:
+        return json.loads((out / "evacuation.json").read_text(encoding="utf-8"))["hikers"]
+
+    try:
+        on_heli, off_heli = strategy(out_on, "helicopter"), strategy(out_off, "helicopter")
+        check("해가 지면 헬기 출동 중지 (낮/밤 끄면 중지 0회)",
+              on_heli["heli_grounded"] > 0 and off_heli["heli_grounded"] == 0
+              and len(on_heli["drops"]) < len(off_heli["drops"]))
+        dark = [h["dark_walk_min"] for h in hikers(out_on) if h["needs_evacuation"]]
+        dark_off = [h["dark_walk_min"] for h in hikers(out_off)]
+        check("밤에 걸은 시간 기록 (낮/밤 끄면 0분)", dark and max(dark) > 0 and max(dark_off) == 0)
+    except (OSError, KeyError, StopIteration, ValueError) as error:
+        check("낮/밤 결과 파일 읽기", False, str(error))
+
+    bad = write_edge_scenario(tmp, "bad_daylight", "[ignition]\npoint1 = 120, 80\n[daylight]\nnight_walk_factor = 5\n")
+    code, text = run_engine(bad, "run", tmp / "bad_daylight")
+    check("잘못된 낮/밤 설정값은 오류 (night_walk_factor = 5)", code == 1 and "night_walk_factor" in text,
+          f"종료 코드 {code}")
+
+
 # ----------------------------------------------------------------------
 # Python 시험
 # ----------------------------------------------------------------------
@@ -203,6 +254,15 @@ def test_python_helpers(tmp: Path) -> None:
     else:
         check("결과 읽기", False, "앞의 엔진 시험 결과가 없음")
 
+    from services import daylight_render
+    spans = daylight_render.night_spans({"start_sun_elevation_deg": 20.0,
+                                         "events": [{"type": "sunset", "time_min": 120.0},
+                                                    {"type": "sunrise", "time_min": 800.0}]}, 1000.0)
+    day_tint = daylight_render.night_tint(1.0, 40.0)
+    night_tint = daylight_render.night_tint(0.0, -30.0)
+    check("낮/밤 화면 계산 (밤 구간, 낮엔 투명·밤엔 어둡게)",
+          spans == [(120.0, 800.0)] and day_tint[3] == 0 and night_tint[3] > 150)
+
 
 def main() -> int:
     exe = app_config.engine_path()
@@ -218,6 +278,7 @@ def main() -> int:
         test_reproducibility(tmp)
         test_edge_cases(tmp)
         test_line_endings(tmp)
+        test_daylight(tmp)
         test_python_helpers(tmp)
 
     failed = [name for name, ok, _ in results if not ok]

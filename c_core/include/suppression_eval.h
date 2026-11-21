@@ -26,6 +26,7 @@ typedef struct {
     EvacSummary evac;             /* 대피 결과 (위험 등산객 수 등) */
     HeliDrop   *drops;            /* 헬기 살수 기록 (동적 할당) */
     int         drop_count;
+    int         heli_grounded;    /* 해가 져서 못 한 출동 (대수 × 회) — 8단계 */
 } StrategyResult;
 
 /* 비교 전체 결과 */

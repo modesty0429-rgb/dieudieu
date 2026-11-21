@@ -33,6 +33,7 @@
 #include "evac_alert.h"
 #include "suppression_eval.h"
 #include "montecarlo.h"
+#include "daylight.h"
 #include "util.h"
 #include "log.h"
 
@@ -367,6 +368,7 @@ static int run_fire_mode(Scenario *sc, const CommandLine *cmd, clock_t start_clo
 
     log_info("확산 시뮬레이션 시작: %.0f분, 한 단계 %.1f분, 시드 %u",
              sc->sim.duration_min, sc->sim.time_step_min, sc->sim.random_seed);
+    log_day_events(sc, sc->sim.duration_min);
     if (!run_fire_simulation(sc, &opts, sc->sim.random_seed, &res)) {
         sim_result_free(&res);
         return WF_ERR_MEMORY;

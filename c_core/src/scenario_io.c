@@ -84,6 +84,14 @@ void scenario_set_defaults(Scenario *sc)
     sc->moisture.south_slope_drying_pct = 2.0;
     sc->moisture.timelag_min = 60.0;
 
+    /* 낮/밤 (8단계): 가상 산은 우리나라 중부 지방에 있다고 가정 */
+    sc->daylight.enabled = 1;
+    sc->daylight.latitude_deg = 37.5;
+    sc->daylight.longitude_deg = 127.0;
+    sc->daylight.utc_offset_h = 9.0;
+    sc->daylight.night_walk_factor = 0.6;
+    sc->daylight.heli_day_only = 1;
+
     sc->weather_mode = WEATHER_FROM_FILE;
     sc->fixed_weather.time_min = 0.0;
     sc->fixed_weather.temp_c = 18.0;
@@ -400,6 +408,31 @@ static int apply_montecarlo(Scenario *sc, const SettingContext *ctx, const char 
     return warn_unknown_key(ctx);
 }
 
+static int apply_daylight(Scenario *sc, const SettingContext *ctx, const char *value)
+{
+    DaylightSettings *d = &sc->daylight;
+
+    if (str_equals_ignore_case(ctx->key, "enabled")) {
+        return read_int_setting(ctx, value, 0, 1, &d->enabled);
+    }
+    if (str_equals_ignore_case(ctx->key, "latitude_deg")) {
+        return read_double_setting(ctx, value, -89.0, 89.0, &d->latitude_deg);
+    }
+    if (str_equals_ignore_case(ctx->key, "longitude_deg")) {
+        return read_double_setting(ctx, value, -180.0, 180.0, &d->longitude_deg);
+    }
+    if (str_equals_ignore_case(ctx->key, "utc_offset_h")) {
+        return read_double_setting(ctx, value, -12.0, 14.0, &d->utc_offset_h);
+    }
+    if (str_equals_ignore_case(ctx->key, "night_walk_factor")) {
+        return read_double_setting(ctx, value, 0.1, 1.0, &d->night_walk_factor);
+    }
+    if (str_equals_ignore_case(ctx->key, "heli_day_only")) {
+        return read_int_setting(ctx, value, 0, 1, &d->heli_day_only);
+    }
+    return warn_unknown_key(ctx);
+}
+
 /* 구역 이름에 따라 알맞은 처리 함수를 부른다. */
 static int apply_setting(Scenario *sc, const SettingContext *ctx, char *value)
 {
@@ -416,6 +449,7 @@ static int apply_setting(Scenario *sc, const SettingContext *ctx, char *value)
     if (str_equals_ignore_case(s, "evacuation"))  return apply_evacuation(sc, ctx, value);
     if (str_equals_ignore_case(s, "suppression")) return apply_suppression(sc, ctx, value);
     if (str_equals_ignore_case(s, "montecarlo"))  return apply_montecarlo(sc, ctx, value);
+    if (str_equals_ignore_case(s, "daylight"))    return apply_daylight(sc, ctx, value);
     return 1;   /* 모르는 구역은 구역 줄에서 이미 경고했으므로 여기서는 조용히 넘어간다 */
 }
 
@@ -424,7 +458,7 @@ static int is_known_section(const char *name)
 {
     static const char *known[] = {
         "general", "map", "trails", "time", "ignition", "weather",
-        "moisture", "spread", "evacuation", "suppression", "montecarlo"
+        "moisture", "spread", "evacuation", "suppression", "montecarlo", "daylight"
     };
     int i;
     for (i = 0; i < (int)(sizeof(known) / sizeof(known[0])); i++) {

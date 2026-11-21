@@ -12,6 +12,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSlider, QWidget
 
+from services import daylight_render
 from services.result_loader import format_clock
 
 FRAME_INTERVAL_MS = 40                         # 초당 25프레임
@@ -28,6 +29,7 @@ class PlaybackBar(QWidget):
         self._end_time = 0.0
         self._time = 0.0
         self._start: datetime | None = None
+        self._sun_at = None          # (8단계) 시각 → (해 고도, 밝기) 함수, 없으면 None
 
         self.play_button = QPushButton("▶ 재생")
         self.play_button.setObjectName("primary")
@@ -76,8 +78,18 @@ class PlaybackBar(QWidget):
         self.slider.setValue(int(round(self._time * 10)))
         self.slider.blockSignals(False)
         clock = format_clock(self._start, self._time)
-        self.time_label.setText(f"T+{self._time:5.1f}분" + (f"  ({clock})" if clock else ""))
+        icon = ""
+        if self._sun_at is not None:
+            sun = self._sun_at(self._time)
+            if sun is not None:
+                icon = " " + daylight_render.sun_phase(sun[0])[2]
+        self.time_label.setText(f"T+{self._time:5.1f}분" + (f"  ({clock}{icon})" if clock else icon))
         self.time_changed.emit(self._time)
+
+    def set_sun_provider(self, sun_at) -> None:
+        """(8단계) 시계 옆에 해·노을·달 아이콘을 표시할 함수 (result.sun_at). None 이면 표시 안 함"""
+        self._sun_at = sun_at
+        self.set_time(self._time)
 
     def current_time(self) -> float:
         return self._time

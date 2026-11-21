@@ -54,11 +54,13 @@
 | 진화 전략 | 점화 트리 + 탐욕법으로 방화선 위치 탐색, 헬기 살수, 대응 없음 / 방화선 / 헬기 / 둘 다 4가지 비교(피해 면적·위험 등산객) |
 | 몬테카를로 | N회 반복(비화·기상 오차) → 연소 확률 지도, 피해 면적 분포, "가장 이른 10%" 기준 보수적 대피 안내 |
 | 실제 기상 | 기상청 단기예보 API → 엔진 기상 파일 (인터넷이 없으면 샘플 파일) |
+| 낮/밤 | 날짜·위치로 해의 높이를 계산 → 일몰 후 등산객은 천천히 걷고(60%), 진화 헬기는 철수. 지도가 시각에 따라 어두워지고 밤에는 불빛이 번져 보임 |
 | GUI | 지도 애니메이션, 대피 안내, 전략 나란히 비교, 통계 그래프, HTML 리포트 저장 |
 
 | | |
 |---|---|
 | ![진화 전략 비교](docs/images/gui_suppression.png) | ![통계](docs/images/gui_stats.png) |
+| ![해 질 녘 (19:05)](docs/images/gui_sunset.png) | ![밤 (21:00)](docs/images/gui_night.png) |
 
 ---
 
@@ -182,6 +184,7 @@ wildfire.exe <시나리오.ini> [--mode 모드] [--out 결과폴더] [--seed 시
 | `spring_dry_base.ini` | 봄철 건조한 날, 시간별 기상 파일, 서풍. 기본 시나리오 |
 | `spring_danger_valley.ini` | 계곡 아래 발화 + 남서풍 11 m/s + 신고 140분 지연. 등산객 1팀이 고립되는 위험 사례 |
 | `calm_fixed_weather.ini` | 무풍 고정 기상. 경사 효과(오르막으로 더 번짐) 확인용 |
+| `evening_valley.ini` | 오후 5시 발화, 일몰 무렵 대피. 낮/밤 효과 확인용 (`[daylight] enabled = 0`으로 바꿔 비교) |
 | `tests/*.ini` | 일부러 틀린 시나리오 5개 (오류 메시지 확인용) |
 
 ### 4-2. 실행 예
@@ -231,6 +234,7 @@ bin\wildfire.exe ..\data\scenarios\tests\bad_values.ini --mode printmap
 | 왼쪽 "시나리오 설정" | 기본 시나리오, 계절, 발화 지점, 기상(파일 / 직접 입력), 진행 시간, 시드 → **🔥 시뮬레이션 실행** |
 | ☁ 실제 기상 데이터 불러오기 | 산 위치를 골라 기상청 단기예보를 받거나(인터넷·API 키 필요), 저장된 기상 파일(샘플 포함)을 골라 시나리오의 기상·시작 시각으로 사용 |
 | 왼쪽 "진화 자원" | 방화선 칸 수·완성 시각, 헬기 대수·출동 간격. "진화 전략 비교 포함"을 끄면 확산 + 대피만 계산 (더 빠름) |
+| 왼쪽 "낮/밤" | 낮/밤 반영 여부, 시작 시각, 밤 보행 속도, 해가 진 뒤 헬기 출동 중지. 17시 전후로 시작하면 일몰 후 효과를 볼 수 있음 |
 | 왼쪽 "몬테카를로" | 반복 실험 포함 여부와 횟수 |
 | 지도 탭 | 음영기복 + 연료 색 + 등고선 위에 불(노랑 → 빨강 → 검정), 등산로, 대피소·주차장, 등산객(◆, 경보 색으로 이동), 대피 경로(초록 = 안전, 빨강 = 위험), 발화 지점(★). **지도를 클릭하면 발화 지점이 바뀜**, 마우스를 올리면 셀 정보 |
 | 재생 컨트롤 | ▶ 재생 / ⏸ 일시정지, 타임라인 슬라이더, 재생 속도 |
@@ -302,6 +306,7 @@ python gui/services/trail_generator.py
 | 다익스트라 (변형) + 이진 힙 | `evac_route.c`, `pqueue.c` | Dijkstra, E.W. (1959). *Numerische Mathematik* 1 |
 | Tobler 보행 함수 | `hiker.c` | Tobler, W. (1993). NCGIA Technical Report 93-1 |
 | 탐욕법 + 점화 트리 하위 가치 | `suppression.c` | 일반적인 탐욕 알고리즘·트리 누적 합 (자료구조 교과서) |
+| 태양 위치 (일출·일몰) | `daylight.c` `solar_elevation_deg` | NOAA General Solar Position Calculations (Spencer 1971 근사식) |
 | 공통 난수 (사건별 난수) | `rng.c` `rng_seed_for_event` | 시뮬레이션 비교 실험의 분산 감소 기법 (common random numbers) |
 | 몬테카를로 + 가장 작은 k개 유지(삽입 정렬) | `montecarlo.c` | 일반적인 통계 기법·정렬 알고리즘 |
 | xorshift32 난수 | `rng.c` | Marsaglia, G. (2003). Xorshift RNGs. *J. Stat. Software* 8(14) |

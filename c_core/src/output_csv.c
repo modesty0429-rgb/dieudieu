@@ -169,13 +169,15 @@ int write_stats_csv(const char *path, const SimResult *res)
         return 0;
     }
     fprintf(fp, "time_min,burning_cells,burned_cells,burned_area_ha,max_spread_rate_m_min,"
-                "spot_fires,temp_c,rh_pct,wind_speed_ms,wind_dir_deg,dead_moisture_pct\n");
+                "spot_fires,temp_c,rh_pct,wind_speed_ms,wind_dir_deg,dead_moisture_pct,"
+                "sun_elevation_deg,daylight\n");
     for (i = 0; i < res->step_count; i++) {
         const StepStats *s = &res->steps[i];
-        fprintf(fp, "%.1f,%d,%d,%.2f,%.3f,%d,%.1f,%.1f,%.2f,%.1f,%.2f\n",
+        fprintf(fp, "%.1f,%d,%d,%.2f,%.3f,%d,%.1f,%.1f,%.2f,%.1f,%.2f,%.2f,%.3f\n",
                 s->time_min, s->burning_cells, s->burned_cells, s->burned_area_ha,
                 s->max_spread_rate_m_min, s->spot_fires, s->weather.temp_c, s->weather.rh_pct,
-                s->weather.wind_speed_ms, s->weather.wind_dir_deg, s->dead_moisture_pct);
+                s->weather.wind_speed_ms, s->weather.wind_dir_deg, s->dead_moisture_pct,
+                s->sun_elevation_deg, s->daylight);
     }
     return close_checked(fp, path);
 }

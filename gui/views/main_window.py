@@ -190,6 +190,7 @@ class MainWindow(QMainWindow):
         self.report_view.set_result(None)
         self.panel.set_map_size(preview.width, preview.height)
         self._on_ignition_changed(self.panel.ignition_x.value(), self.panel.ignition_y.value())
+        self.playback.set_sun_provider(None)
         self.playback.set_range(0.0, preview.start_time)
         self.status_bar.show_message(f"시나리오 '{preview.name}' 지도 ({preview.width}×{preview.height}칸)")
 
@@ -209,6 +210,7 @@ class MainWindow(QMainWindow):
         self.stats_view.set_result(result)
         self.report_view.set_result(result)
         self.panel.set_map_size(result.map.width, result.map.height)
+        self.playback.set_sun_provider(result.sun_at if result.daylight else None)   # (8단계) 시계 옆 해·달
         self.playback.set_range(result.end_time, result.map.start_time)   # 시각 0 으로 → 표 갱신
         r = result.summary["result"]
         self.status_bar.show_message(
