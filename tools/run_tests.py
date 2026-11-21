@@ -9,6 +9,7 @@
           오류 시나리오 5개가 종료 코드 1로 끝나고 [ERROR] 메시지를 내는지
           같은 시드로 두 번 실행하면 결과가 같은지 (재현성)
           경계 조건 (등산객 없음, 진화 자원 0, 불이 안 붙음, 젖은 연료)
+          줄바꿈 형식 (LF / CRLF 입력 파일에서 같은 결과)
   [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기
 
 결과는 항목마다 "통과 / 실패"로 출력되고, 하나라도 실패하면 종료 코드 1.
@@ -127,6 +128,30 @@ def test_edge_cases(tmp: Path) -> None:
         check(f"{name}", code == 0 and ok_message, f"종료 코드 {code}, 기대한 문구 '{expected}' 없음")
 
 
+def test_line_endings(tmp: Path) -> None:
+    """
+    입력 파일의 줄바꿈이 LF(리눅스식)여도 CRLF(Windows식)여도 같은 결과가 나와야 한다.
+    (Windows 에서 git 으로 받으면 CRLF, ZIP 으로 받으면 LF 인 경우가 많다.
+     실제로 Windows 에서 LF 지도 파일을 텍스트 모드로 읽다가 첫 숫자를 건너뛴 버그가 있었다.)
+    """
+    print("\n[엔진] 줄바꿈 형식 (LF / CRLF 입력 파일)")
+    results_by_style = {}
+    for style, newline in (("lf", "\n"), ("crlf", "\r\n")):
+        data = tmp / f"data_{style}"
+        shutil.copytree(app_config.DATA_DIR, data, ignore=shutil.ignore_patterns("gui_custom.ini"))
+        for path in data.rglob("*"):
+            if path.suffix in (".asc", ".ini", ".csv", ".txt"):
+                text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+                path.write_bytes(text.replace("\n", newline).encode("utf-8"))
+        out = tmp / f"out_{style}"
+        code, text = run_engine(data / "scenarios" / "spring_dry_base.ini", "evac", out)
+        ok = code == 0 and (out / "arrival_time.csv").exists()
+        check(f"{style.upper()} 입력 파일로 실행", ok, f"종료 코드 {code} {text[-200:] if not ok else ''}")
+        if ok:
+            results_by_style[style] = file_hash(out / "arrival_time.csv")
+    check("LF·CRLF 결과가 같음", len(results_by_style) == 2 and len(set(results_by_style.values())) == 1)
+
+
 # ----------------------------------------------------------------------
 # Python 시험
 # ----------------------------------------------------------------------
@@ -192,6 +217,7 @@ def main() -> int:
         test_engine_errors(tmp)
         test_reproducibility(tmp)
         test_edge_cases(tmp)
+        test_line_endings(tmp)
         test_python_helpers(tmp)
 
     failed = [name for name, ok, _ in results if not ok]

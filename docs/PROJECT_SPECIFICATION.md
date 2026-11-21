@@ -808,5 +808,5 @@ API 키 발급은 여러분이 공공데이터포털에서 직접 하셔야 합�
 - 매 단계 gcc(`-Wall -Wextra -Wpedantic -Wconversion -Wshadow`)와 clang(`-Weverything`)으로 경고 0개를 확인했다.
 - valgrind와 AddressSanitizer로 메모리 누수·오류가 없음을 확인했다(모든 모드와 오류 경로).
 - MSVC 빌드는 1단계에서 팀이 확인했다. 이후 단계는 팀 PC에서 다시 확인해야 한다.
-- 자동 테스트 23개(`python tools/run_tests.py`)
+- 자동 테스트 26개(`python tools/run_tests.py`)
 

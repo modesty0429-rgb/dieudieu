@@ -153,7 +153,14 @@ int load_asc_grid(const char *path, AscHeader *header, double **values)
 
     *values = NULL;
 
-    fp = fopen(path, "r");
+    /*
+     * 바이너리 모드("rb")로 연다.
+     * 헤더를 읽을 때 ftell/fseek 로 줄 위치를 기억했다가 되돌아가는데, Windows 에서 텍스트 모드("r")로
+     * 줄바꿈이 LF(리눅스식)인 파일을 열면 ftell 이 줄마다 1바이트씩 틀린 위치를 돌려준다.
+     * (실제로 첫 숫자를 건너뛰어 "값이 부족함" 오류가 났다.) 바이너리 모드에서는 위치가 정확하고,
+     * 줄 끝의 '\r' 은 read_text_line 과 fscanf 가 처리하므로 LF·CRLF 파일 모두 읽을 수 있다.
+     */
+    fp = fopen(path, "rb");
     if (fp == NULL) {
         log_error("격자 파일을 열 수 없음: %s (경로와 파일 이름을 확인하세요)", path);
         return 0;
