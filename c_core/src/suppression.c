@@ -17,6 +17,8 @@
  *     3) 조각 점수(하위 가치 합)가 높은 후보 3개를 실제로 시뮬레이션해 피해가 가장 작은 것을 선택
  *     4) 방화선 칸 수가 K가 되거나 더 이상 줄어들지 않을 때까지 반복
  *   탐욕법은 "지금 가장 좋아 보이는 것"을 고르는 방법이라 전체 최적을 보장하지는 않지만 빠르다.
+ *   헬기 길잡이(heli_guide)를 주면 후보를 시험하는 시뮬레이션에도 헬기 살수가 들어간다.
+ *   → "헬기가 함께 출동한다"는 것을 알고 방화선을 고른다 (방화선 + 헬기 전략용).
  *
  * [헬기] plan_helicopter_drops — 시뮬레이션 도중 출동 간격마다 호출
  *   화선의 셀 중 "아직 타지 않은 이웃들의 하위 가치 합"이 가장 큰 곳(= 불이 가장 큰 피해를 향해 가는 곳)에
@@ -141,6 +143,7 @@ void firebreak_plan_init(FirebreakPlan *plan)
     plan->step_count = 0;
     plan->damage_without = 0.0;
     plan->damage_with = 0.0;
+    plan->searched_with_helicopters = 0;
 }
 
 void firebreak_plan_free(FirebreakPlan *plan)
@@ -179,8 +182,12 @@ void remove_firebreak(Grid *grid, const FirebreakPlan *plan)
     }
 }
 
-/* 조용히 시뮬레이션 한 번 실행하고 피해 가치를 돌려준다. (방화선은 격자에 이미 표시된 상태) */
-static int simulate_damage(Scenario *sc, const double *weights, unsigned int seed, double *damage)
+/*
+ * 조용히 시뮬레이션 한 번 실행하고 피해 가치를 돌려준다. (방화선은 격자에 이미 표시된 상태)
+ * heli_guide 가 NULL 이 아니면 헬기 살수도 함께 시뮬레이션한다.
+ */
+static int simulate_damage(Scenario *sc, const double *weights, unsigned int seed,
+                           const double *heli_guide, double *damage)
 {
     SimOptions opts;
     SimResult  res;
@@ -189,6 +196,8 @@ static int simulate_damage(Scenario *sc, const double *weights, unsigned int see
     sim_options_default(&opts);
     opts.quiet = 1;
     opts.record_events = 0;
+    opts.use_helicopters = (heli_guide != NULL);
+    opts.heli_guide = heli_guide;
     sim_result_init(&res);
     ok = run_fire_simulation(sc, &opts, seed, &res);
     *damage = weighted_damage(&sc->grid, weights);
@@ -345,11 +354,47 @@ static void set_segment(Grid *grid, const SegmentCandidate *seg, int limit, Cell
     }
 }
 
+/* 방화선 계획을 통째로 복사한다. (dst 는 비어 있어야 함) 성공 1, 실패 0 */
+int firebreak_plan_copy(FirebreakPlan *dst, const FirebreakPlan *src)
+{
+    int i;
+
+    for (i = 0; i < src->cells.count; i++) {
+        if (intarray_push(&dst->cells, src->cells.data[i]) != 0) {
+            return 0;
+        }
+    }
+    for (i = 0; i < src->step_count; i++) {
+        dst->steps[i] = src->steps[i];
+    }
+    dst->step_count = src->step_count;
+    dst->damage_without = src->damage_without;
+    dst->damage_with = src->damage_with;
+    dst->searched_with_helicopters = src->searched_with_helicopters;
+    return 1;
+}
+
+/*
+ * 방화선 계획을 격자에 놓고 시뮬레이션한 피해 가치를 구한 뒤 방화선을 다시 치운다.
+ * heli_guide 가 있으면 헬기 살수도 함께 시뮬레이션한다. 성공 1, 실패 0
+ */
+int evaluate_firebreak_plan(Scenario *sc, const double *weights, unsigned int seed, const double *heli_guide,
+                            const FirebreakPlan *plan, double *damage)
+{
+    int ok;
+
+    apply_firebreak(&sc->grid, plan);
+    ok = simulate_damage(sc, weights, seed, heli_guide, damage);
+    remove_firebreak(&sc->grid, plan);
+    grid_reset_fire_state(&sc->grid);
+    return ok;
+}
+
 /*
  * 후보 조각을 하나씩 실제로 시뮬레이션해 보고, 피해가 가장 작아지는 후보 번호를 돌려준다.
  * 현재 피해(current_damage)보다 줄어드는 후보가 없으면 -1, 메모리 부족이면 -2
  */
-static int try_candidates(Scenario *sc, const double *weights, unsigned int seed,
+static int try_candidates(Scenario *sc, const double *weights, unsigned int seed, const double *heli_guide,
                           const SegmentCandidate *candidates, int count, int limit,
                           double current_damage, double *best_damage)
 {
@@ -362,7 +407,7 @@ static int try_candidates(Scenario *sc, const double *weights, unsigned int seed
         int    ok;
 
         set_segment(&sc->grid, &candidates[i], limit, CELL_FIREBREAK);    /* 잠시 방화선을 놓고 */
-        ok = simulate_damage(sc, weights, seed, &damage);                  /* 시뮬레이션해 본 뒤 */
+        ok = simulate_damage(sc, weights, seed, heli_guide, &damage);      /* 시뮬레이션해 본 뒤 */
         set_segment(&sc->grid, &candidates[i], limit, CELL_UNBURNED);     /* 다시 치운다 */
         if (!ok) {
             return -2;
@@ -407,9 +452,11 @@ static int accept_segment(FirebreakPlan *plan, const SegmentCandidate *seg, int 
  *         → 확정한 방화선을 놓고 다시 시뮬레이션 (다음 반복의 점화 트리를 위해)
  *   K칸을 다 쓰거나, 어떤 후보도 피해를 줄이지 못하면 멈춘다.
  * weights: 셀 가치, seed: 비교용 시뮬레이션의 난수 시드 (모든 후보를 같은 조건에서 비교)
+ * heli_guide: NULL 이면 헬기 없이, 아니면 헬기 살수를 함께 시뮬레이션하며 방화선을 고른다.
  * 결과는 plan 에 저장되고, 함수가 끝나면 격자의 방화선 표시는 지워진다. 성공 1, 실패 0
  */
-int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, FirebreakPlan *plan)
+int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, const double *heli_guide,
+                       FirebreakPlan *plan)
 {
     Grid   *grid = &sc->grid;
     int     budget = sc->supp.firebreak_cells;
@@ -418,10 +465,11 @@ int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, F
     int     ok;
 
     firebreak_plan_init(plan);
+    plan->searched_with_helicopters = (heli_guide != NULL);
     if (values == NULL) {
         return 0;
     }
-    ok = simulate_damage(sc, weights, seed, &current_damage);
+    ok = simulate_damage(sc, weights, seed, heli_guide, &current_damage);
     plan->damage_without = current_damage;
 
     while (ok && plan->cells.count < budget && plan->step_count < MAX_FIREBREAK_STEPS) {
@@ -440,7 +488,7 @@ int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, F
             break;
         }
         /* ③ 후보 시험 */
-        best = try_candidates(sc, weights, seed, top, count, limit, current_damage, &best_damage);
+        best = try_candidates(sc, weights, seed, heli_guide, top, count, limit, current_damage, &best_damage);
         if (best == -2) {
             ok = 0;
             break;
@@ -451,7 +499,7 @@ int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, F
         /* ④ 확정하고, 확정한 방화선으로 다시 시뮬레이션 */
         ok = accept_segment(plan, &top[best], limit, current_damage, best_damage);
         apply_firebreak(grid, plan);
-        ok = ok && simulate_damage(sc, weights, seed, &current_damage);
+        ok = ok && simulate_damage(sc, weights, seed, heli_guide, &current_damage);
     }
 
     plan->damage_with = current_damage;

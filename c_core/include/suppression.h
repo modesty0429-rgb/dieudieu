@@ -30,6 +30,7 @@ typedef struct {
     int           step_count;
     double        damage_without;              /* 방화선 없을 때 피해 가치 */
     double        damage_with;                 /* 방화선 있을 때 피해 가치 */
+    int           searched_with_helicopters;   /* 1이면 헬기 살수를 함께 시뮬레이션하며 고른 계획 */
 } FirebreakPlan;
 
 int    build_cell_weights(const Scenario *sc, double **weights);
@@ -40,7 +41,11 @@ void   firebreak_plan_init(FirebreakPlan *plan);
 void   firebreak_plan_free(FirebreakPlan *plan);
 void   apply_firebreak(Grid *grid, const FirebreakPlan *plan);
 void   remove_firebreak(Grid *grid, const FirebreakPlan *plan);
-int    optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, FirebreakPlan *plan);
+int    firebreak_plan_copy(FirebreakPlan *dst, const FirebreakPlan *src);
+int    evaluate_firebreak_plan(Scenario *sc, const double *weights, unsigned int seed, const double *heli_guide,
+                               const FirebreakPlan *plan, double *damage);
+int    optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, const double *heli_guide,
+                          FirebreakPlan *plan);
 
 double first_helicopter_time(const Scenario *sc);
 int    plan_helicopter_drops(Scenario *sc, FireState *state, double t, const double *guide, SimResult *res);

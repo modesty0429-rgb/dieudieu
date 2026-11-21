@@ -4,9 +4,9 @@
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
-| C | 9023 | 약 8,000 | 113% |
-| Python | 4436 | 약 4,000 | 111% |
-| **합계** | **13459** | **약 12,000** | **112%** |
+| C | 9135 | 약 8,000 | 114% |
+| Python | 4448 | 약 4,000 | 111% |
+| **합계** | **13583** | **약 12,000** | **113%** |
 
 ## C
 
@@ -30,8 +30,8 @@
 | `c_core/include/spotting.h` | 15 | 8 | 4 | 3 |
 | `c_core/include/spread_rate.h` | 24 | 15 | 5 | 4 |
 | `c_core/include/spread_sim.h` | 38 | 27 | 5 | 6 |
-| `c_core/include/suppression.h` | 48 | 34 | 6 | 8 |
-| `c_core/include/suppression_eval.h` | 41 | 29 | 6 | 6 |
+| `c_core/include/suppression.h` | 53 | 39 | 6 | 8 |
+| `c_core/include/suppression_eval.h` | 43 | 31 | 6 | 6 |
 | `c_core/include/trail_io.h` | 19 | 11 | 4 | 4 |
 | `c_core/include/util.h` | 54 | 35 | 11 | 8 |
 | `c_core/include/weather.h` | 16 | 9 | 4 | 3 |
@@ -49,19 +49,19 @@
 | `c_core/src/map_io.c` | 447 | 322 | 84 | 41 |
 | `c_core/src/montecarlo.c` | 280 | 213 | 40 | 27 |
 | `c_core/src/output_csv.c` | 181 | 134 | 31 | 16 |
-| `c_core/src/output_json.c` | 576 | 468 | 49 | 59 |
+| `c_core/src/output_json.c` | 589 | 478 | 50 | 61 |
 | `c_core/src/pqueue.c` | 118 | 89 | 16 | 13 |
 | `c_core/src/rng.c` | 82 | 47 | 27 | 8 |
 | `c_core/src/scenario_io.c` | 690 | 553 | 71 | 66 |
 | `c_core/src/spotting.c` | 86 | 50 | 26 | 10 |
 | `c_core/src/spread_rate.c` | 107 | 55 | 41 | 11 |
 | `c_core/src/spread_sim.c` | 513 | 370 | 92 | 51 |
-| `c_core/src/suppression.c` | 594 | 448 | 95 | 51 |
-| `c_core/src/suppression_eval.c` | 230 | 175 | 30 | 25 |
+| `c_core/src/suppression.c` | 642 | 481 | 106 | 55 |
+| `c_core/src/suppression_eval.c` | 274 | 208 | 39 | 27 |
 | `c_core/src/trail_io.c` | 697 | 535 | 97 | 65 |
 | `c_core/src/util.c` | 527 | 380 | 91 | 56 |
 | `c_core/src/weather.c` | 255 | 184 | 46 | 25 |
-| **합계** | **9023** | **6616** | **1473** | **934** |
+| **합계** | **9135** | **6699** | **1494** | **942** |
 
 ## Python
 
@@ -74,7 +74,7 @@
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
 | `gui/services/map_render.py` | 110 | 60 | 30 | 20 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
-| `gui/services/result_loader.py` | 412 | 303 | 34 | 75 |
+| `gui/services/result_loader.py` | 423 | 312 | 35 | 76 |
 | `gui/services/scenario_writer.py` | 148 | 100 | 25 | 23 |
 | `gui/services/terrain_generator.py` | 256 | 145 | 60 | 51 |
 | `gui/services/trail_generator.py` | 112 | 76 | 15 | 21 |
@@ -89,8 +89,8 @@
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
 | `gui/views/scenario_panel.py` | 405 | 324 | 34 | 47 |
 | `gui/views/stats_view.py` | 207 | 164 | 17 | 26 |
-| `gui/views/suppression_view.py` | 223 | 178 | 15 | 30 |
+| `gui/views/suppression_view.py` | 224 | 178 | 16 | 30 |
 | `gui/views/weather_dialog.py` | 157 | 128 | 9 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/run_tests.py` | 232 | 167 | 28 | 37 |
-| **합계** | **4436** | **3170** | **600** | **666** |
+| **합계** | **4448** | **3179** | **602** | **667** |

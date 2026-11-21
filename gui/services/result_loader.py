@@ -165,17 +165,26 @@ class StrategyResult:
     arrival: np.ndarray
     burnout: np.ndarray
     drops: np.ndarray            # [시각, x, y] × 살수 횟수
+    firebreak_cells: list[tuple[int, int]]   # 이 전략이 쓴 방화선 (방화선 + 헬기는 헬기를 고려해 고른 것일 수 있음)
 
 
 @dataclass
 class SuppressionData:
     settings: dict
-    firebreak_cells: list[tuple[int, int]]
+    firebreak_cells: list[tuple[int, int]]   # "방화선" 전략의 방화선 (헬기 없이 고름)
     firebreak_steps: list[dict]
+    combined_plan: dict                       # "방화선 + 헬기" 전략용 방화선 계획 (firebreak_with_helicopters)
     strategies: list[StrategyResult]
 
     def by_key(self, key: str) -> StrategyResult | None:
         return next((s for s in self.strategies if s.key == key), None)
+
+    def combined_plan_text(self) -> str:
+        """'방화선 + 헬기' 전략의 방화선을 어떻게 골랐는지 한 줄 설명"""
+        plan = self.combined_plan
+        how = ("헬기 살수를 함께 고려해 고름" if plan.get("searched_with_helicopters")
+               else "헬기 없이 고른 방화선이 더 효과적이라 그대로 사용")
+        return f"방화선+헬기용 방화선 {plan.get('cell_count', 0)}칸 ({how})"
 
 
 def load_suppression(path: Path) -> SuppressionData:
@@ -193,12 +202,14 @@ def load_suppression(path: Path) -> SuppressionData:
             arrival=read_grid_csv(folder / s["arrival_file"]),
             burnout=read_grid_csv(folder / s["burnout_file"]),
             drops=np.asarray(s["drops"], dtype=np.float64).reshape(-1, 3),
+            firebreak_cells=[(int(x), int(y)) for x, y in s.get("firebreak_cells", [])],
         ))
     firebreak = data["firebreak"]
     return SuppressionData(
         settings=data["settings"],
         firebreak_cells=[(int(x), int(y)) for x, y in firebreak["cells"]],
         firebreak_steps=firebreak["steps"],
+        combined_plan=data.get("firebreak_with_helicopters", firebreak),
         strategies=strategies,
     )
 

@@ -109,8 +109,11 @@ static int evaluate_strategy(Scenario *sc, unsigned int seed, const double *weig
     out->use_firebreak = STRATEGIES[which].use_firebreak;
     out->use_helicopters = STRATEGIES[which].use_helicopters;
 
+    /* 방화선 + 헬기 전략은 헬기를 고려해 고른 방화선을 쓴다 */
+    out->firebreak = NULL;
     if (out->use_firebreak) {
-        apply_firebreak(&sc->grid, &report->firebreak);
+        out->firebreak = out->use_helicopters ? &report->firebreak_with_heli : &report->firebreak;
+        apply_firebreak(&sc->grid, out->firebreak);
     }
     sim_options_default(&opts);
     opts.quiet = 1;
@@ -127,18 +130,43 @@ static int evaluate_strategy(Scenario *sc, unsigned int seed, const double *weig
     out->spot_fires = res.spot_fire_count;
     out->trail_burned_km = burned_trail_km(&sc->grid, weights);
 
-    if (out->use_firebreak) {
-        remove_firebreak(&sc->grid, &report->firebreak);
+    if (out->firebreak != NULL) {
+        remove_firebreak(&sc->grid, out->firebreak);
     }
     sim_result_free(&res);
     return ok;
 }
 
 /*
+ * "방화선 + 헬기" 전략에 쓸 방화선 고르기
+ * 탐욕법은 한 조각씩만 보므로, 헬기를 고려한 탐색이 "조각 하나로는 효과가 없어" 일찍 멈출 수 있다.
+ * 그래서 두 계획(헬기 없이 고른 것, 헬기를 고려해 고른 것)을 모두 헬기와 함께 시뮬레이션해 보고
+ * 피해가 더 작은 쪽을 쓴다. (같으면 헬기를 고려한 계획) 성공 1, 실패 0
+ */
+static int keep_better_heli_plan(Scenario *sc, const double *weights, unsigned int seed, SuppressionReport *report)
+{
+    double damage_aware, damage_plain;
+
+    if (!evaluate_firebreak_plan(sc, weights, seed, report->guide, &report->firebreak_with_heli, &damage_aware) ||
+        !evaluate_firebreak_plan(sc, weights, seed, report->guide, &report->firebreak, &damage_plain)) {
+        return 0;
+    }
+    log_info("방화선 + 헬기: 헬기 고려 방화선 피해 가치 %.0f, 헬기 없이 고른 방화선 %.0f → %s 사용",
+             damage_aware, damage_plain, (damage_plain < damage_aware) ? "헬기 없이 고른 방화선" : "헬기 고려 방화선");
+    if (damage_plain < damage_aware) {
+        firebreak_plan_free(&report->firebreak_with_heli);
+        firebreak_plan_init(&report->firebreak_with_heli);
+        return firebreak_plan_copy(&report->firebreak_with_heli, &report->firebreak);
+    }
+    return 1;
+}
+
+/*
  * compare_strategies: 진화 전략 4가지를 비교한다.
  *   1) 셀 가치(등산로 가중) 만들기
  *   2) 기준 시뮬레이션 → 점화 트리 하위 가치 (헬기 목표 선택의 길잡이)
- *   3) optimize_firebreak 로 방화선 K칸 배치
+ *   3) optimize_firebreak 로 방화선 K칸 배치 — 두 번:
+ *      헬기 없이("방화선" 전략용), 헬기를 함께 출동시키며("방화선 + 헬기" 전략용)
  *   4) 전략 4가지를 각각 시뮬레이션 + 대피 계산 + 파일 저장
  * 성공 1, 실패 0
  */
@@ -152,6 +180,7 @@ int compare_strategies(Scenario *sc, unsigned int seed, SuppressionReport *repor
     int        i;
 
     firebreak_plan_init(&report->firebreak);
+    firebreak_plan_init(&report->firebreak_with_heli);
     report->guide = NULL;
     for (i = 0; i < STRATEGY_COUNT; i++) {
         report->strategies[i].drops = NULL;
@@ -173,8 +202,19 @@ int compare_strategies(Scenario *sc, unsigned int seed, SuppressionReport *repor
 
     /* 3) 방화선 최적화 */
     if (ok && sc->supp.firebreak_cells > 0) {
-        log_progress(84, "방화선 %d칸 배치 탐색 중 (탐욕법)", sc->supp.firebreak_cells);
-        ok = optimize_firebreak(sc, weights, seed, &report->firebreak);
+        log_progress(84, "방화선 %d칸 배치 탐색 중 (탐욕법, 헬기 없이)", sc->supp.firebreak_cells);
+        ok = optimize_firebreak(sc, weights, seed, NULL, &report->firebreak);
+        if (ok && sc->supp.helicopters > 0) {
+            log_progress(85, "방화선 %d칸 배치 탐색 중 (헬기 살수를 함께 고려)", sc->supp.firebreak_cells);
+            ok = optimize_firebreak(sc, weights, seed, report->guide, &report->firebreak_with_heli);
+            ok = ok && keep_better_heli_plan(sc, weights, seed, report);
+        }
+    }
+    /* 헬기가 없으면 두 전략의 방화선은 같다 */
+    if (ok && (sc->supp.helicopters == 0 || sc->supp.firebreak_cells == 0)) {
+        firebreak_plan_free(&report->firebreak_with_heli);
+        firebreak_plan_init(&report->firebreak_with_heli);
+        ok = firebreak_plan_copy(&report->firebreak_with_heli, &report->firebreak);
     }
 
     /* 4) 전략 비교 */
@@ -197,6 +237,7 @@ void free_suppression_report(SuppressionReport *report)
     int i;
 
     firebreak_plan_free(&report->firebreak);
+    firebreak_plan_free(&report->firebreak_with_heli);
     for (i = 0; i < STRATEGY_COUNT; i++) {
         free(report->strategies[i].drops);
         report->strategies[i].drops = NULL;
@@ -212,8 +253,11 @@ void print_strategy_table(const Scenario *sc, const SuppressionReport *report)
     int i;
 
     printf("\n================ 진화 전략 비교 ================\n");
-    printf(" 방화선: %d칸 (%d개 조각, %.0f분 완성)   헬기: %d대 (반경 %d칸, %.0f분 간격, 효과 %.0f분)\n",
+    printf(" 방화선: %d칸 (%d개 조각, %.0f분 완성) / 방화선+헬기용: %d칸 (%d개 조각, %s)\n",
            report->firebreak.cells.count, report->firebreak.step_count, sc->supp.firebreak_ready_min,
+           report->firebreak_with_heli.cells.count, report->firebreak_with_heli.step_count,
+           report->firebreak_with_heli.searched_with_helicopters ? "헬기 고려 탐색" : "헬기 없이 고른 방화선");
+    printf(" 헬기: %d대 (반경 %d칸, %.0f분 간격, 효과 %.0f분)\n",
            sc->supp.helicopters, sc->supp.heli_radius_cells, sc->supp.heli_interval_min,
            sc->supp.heli_effect_min);
     printf("----------------+-----------+--------+-----------+-----------+------+------\n");

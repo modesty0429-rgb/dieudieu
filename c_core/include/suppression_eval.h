@@ -17,6 +17,7 @@ typedef struct {
     const char *name;             /* 화면 표시용 한국어 */
     int         use_firebreak;
     int         use_helicopters;
+    const FirebreakPlan *firebreak;  /* 이 전략이 쓴 방화선 (방화선을 안 쓰면 NULL) */
     double      burned_area_ha;   /* 피해 면적 */
     int         burned_cells;
     double      trail_burned_km;  /* 불이 지나간 등산로 길이 (셀 수 × 칸 크기, 근사) */
@@ -29,7 +30,8 @@ typedef struct {
 
 /* 비교 전체 결과 */
 typedef struct {
-    FirebreakPlan  firebreak;
+    FirebreakPlan  firebreak;            /* "방화선" 전략용: 헬기 없이 고른 방화선 */
+    FirebreakPlan  firebreak_with_heli;  /* "방화선 + 헬기" 전략용: 헬기 살수까지 고려해 고른 방화선 */
     StrategyResult strategies[STRATEGY_COUNT];
     double        *guide;         /* 헬기 목표 선택용 하위 가치 (기준 시뮬레이션) */
 } SuppressionReport;

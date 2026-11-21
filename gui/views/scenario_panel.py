@@ -194,7 +194,7 @@ class ScenarioPanel(QScrollArea):
     def _build_suppression_group(self) -> QGroupBox:
         group = QGroupBox("진화 자원")
         form = QFormLayout(group)
-        self.include_suppression = QCheckBox("진화 전략 비교 포함 (몇 초 더 걸림)")
+        self.include_suppression = QCheckBox("진화 전략 비교 포함 (약 15~35초 더 걸림)")
         self.include_suppression.setChecked(True)
         self.firebreak_cells = QSpinBox()
         self.firebreak_cells.setRange(0, 500)

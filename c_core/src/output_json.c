@@ -410,6 +410,33 @@ static void write_cell_list(JsonWriter *w, const char *key, const IntArray *cell
     json_end_array(w);
 }
 
+/* 방화선 계획 하나: 셀 수, 피해 가치(전/후), 셀 목록, 단계별 기록 */
+static void write_firebreak_plan(JsonWriter *w, const char *key, const FirebreakPlan *fb, int width)
+{
+    int i;
+
+    json_begin_object(w, key);
+    json_int(w, "cell_count", fb->cells.count);
+    json_bool(w, "searched_with_helicopters", fb->searched_with_helicopters);
+    json_number(w, "damage_without", fb->damage_without);
+    json_number(w, "damage_with", fb->damage_with);
+    write_cell_list(w, "cells", &fb->cells, width);
+    json_begin_array(w, "steps");
+    for (i = 0; i < fb->step_count; i++) {
+        const FirebreakStep *step = &fb->steps[i];
+        json_begin_object(w, NULL);
+        json_int(w, "center_x", step->center_x);
+        json_int(w, "center_y", step->center_y);
+        json_int(w, "cells_added", step->cells_added);
+        json_number(w, "score", step->score);
+        json_number(w, "damage_before", step->damage_before);
+        json_number(w, "damage_after", step->damage_after);
+        json_end_object(w);
+    }
+    json_end_array(w);
+    json_end_object(w);
+}
+
 /*
  * suppression.json: 진화 자원 설정, 방화선 셀과 최적화 단계 기록, 전략 4가지 비교 결과
  * (전략별 도착·전소 격자 파일 이름, 헬기 살수 기록 포함)
@@ -437,25 +464,8 @@ int write_suppression_json(const char *path, const Scenario *sc, const Suppressi
     json_number(&w, "trail_cell_weight", TRAIL_CELL_WEIGHT);
     json_end_object(&w);
 
-    json_begin_object(&w, "firebreak");
-    json_int(&w, "cell_count", fb->cells.count);
-    json_number(&w, "damage_without", fb->damage_without);
-    json_number(&w, "damage_with", fb->damage_with);
-    write_cell_list(&w, "cells", &fb->cells, sc->grid.width);
-    json_begin_array(&w, "steps");
-    for (i = 0; i < fb->step_count; i++) {
-        const FirebreakStep *step = &fb->steps[i];
-        json_begin_object(&w, NULL);
-        json_int(&w, "center_x", step->center_x);
-        json_int(&w, "center_y", step->center_y);
-        json_int(&w, "cells_added", step->cells_added);
-        json_number(&w, "score", step->score);
-        json_number(&w, "damage_before", step->damage_before);
-        json_number(&w, "damage_after", step->damage_after);
-        json_end_object(&w);
-    }
-    json_end_array(&w);
-    json_end_object(&w);
+    write_firebreak_plan(&w, "firebreak", fb, sc->grid.width);                                   /* 헬기 없이 고름 */
+    write_firebreak_plan(&w, "firebreak_with_helicopters", &report->firebreak_with_heli, sc->grid.width); /* 헬기 고려 */
 
     json_begin_array(&w, "strategies");
     for (i = 0; i < STRATEGY_COUNT; i++) {
@@ -465,6 +475,9 @@ int write_suppression_json(const char *path, const Scenario *sc, const Suppressi
         json_string(&w, "name", s->name);
         json_bool(&w, "use_firebreak", s->use_firebreak);
         json_bool(&w, "use_helicopters", s->use_helicopters);
+        if (s->firebreak != NULL) {
+            write_cell_list(&w, "firebreak_cells", &s->firebreak->cells, sc->grid.width);  /* 이 전략의 방화선 */
+        }
         json_number(&w, "burned_area_ha", s->burned_area_ha);
         json_int(&w, "burned_cells", s->burned_cells);
         json_number(&w, "reduction_pct", s->reduction_pct);

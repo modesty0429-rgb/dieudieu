@@ -123,7 +123,7 @@ def _suppression(result: SimulationResult) -> str:
     cfg = sup.settings
     return ("<h2>3. 진화 전략 비교</h2>"
             f"<p>방화선 {len(sup.firebreak_cells)}칸({len(sup.firebreak_steps)}개 조각, {cfg['firebreak_ready_min']:.0f}분 완성), "
-            f"헬기 {cfg['helicopters']}대({cfg['heli_interval_min']:.0f}분 간격)</p>"
+            f"헬기 {cfg['helicopters']}대({cfg['heli_interval_min']:.0f}분 간격). {_esc(sup.combined_plan_text())}</p>"
             + _table(["전략", "피해 면적 (ha)", "감소율", "등산로 소실 (km)", "위험 팀 / 인원", "비화", "헬기 살수"], rows)
             + f"<p>위험 인원과 피해 면적이 가장 작은 전략: <span class='good'>{_esc(best.name)}</span></p>")
 

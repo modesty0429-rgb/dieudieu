@@ -87,9 +87,10 @@ class StrategyMap(QWidget):
             self.trail_items.append(item)
         self.plot.setRange(xRange=(0, map_data.width), yRange=(0, map_data.height), padding=0.02)
 
-    def set_strategy(self, strategy: StrategyResult | None, firebreak: list[tuple[int, int]]) -> None:
+    def set_strategy(self, strategy: StrategyResult | None) -> None:
+        """전략을 바꾼다. 방화선은 전략마다 다를 수 있으므로 그 전략의 방화선을 그린다."""
         self.strategy = strategy
-        self.firebreak = firebreak if strategy is not None and strategy.use_firebreak else []
+        self.firebreak = strategy.firebreak_cells if strategy is not None and strategy.use_firebreak else []
         xs = [x + 0.5 for x, _ in self.firebreak]
         ys = [y + 0.5 for _, y in self.firebreak]
         self.firebreak_item.setData(xs, ys)
@@ -170,7 +171,7 @@ class SuppressionView(QWidget):
             view.combo.blockSignals(True)
             view.combo.clear()
             view.combo.blockSignals(False)
-            view.set_strategy(None, [])
+            view.set_strategy(None)
         if data is None or map_data is None:
             self.info_label.setText("진화 전략 결과가 없습니다. 왼쪽에서 '진화 전략 비교 포함'을 켜고 실행하세요.")
             return
@@ -178,8 +179,8 @@ class SuppressionView(QWidget):
         cfg = data.settings
         self.info_label.setText(
             f"방화선 {len(data.firebreak_cells)}칸 ({len(data.firebreak_steps)}개 조각, "
-            f"{cfg['firebreak_ready_min']:.0f}분 완성, 탐욕법)  ·  헬기 {cfg['helicopters']}대 "
-            f"(반경 {cfg['heli_radius_cells']}칸, {cfg['heli_interval_min']:.0f}분 간격, "
+            f"{cfg['firebreak_ready_min']:.0f}분 완성, 탐욕법)  ·  {data.combined_plan_text()}<br>"
+            f"헬기 {cfg['helicopters']}대 (반경 {cfg['heli_radius_cells']}칸, {cfg['heli_interval_min']:.0f}분 간격, "
             f"첫 살수 {cfg['first_drop_min']:.0f}분, 효과 {cfg['heli_effect_min']:.0f}분)")
         self._fill_table(data)
         for view in (self.left, self.right):
@@ -220,4 +221,4 @@ class SuppressionView(QWidget):
     def _on_combo(self, view: StrategyMap) -> None:
         if self.data is None:
             return
-        view.set_strategy(self.data.by_key(view.combo.currentData()), self.data.firebreak_cells)
+        view.set_strategy(self.data.by_key(view.combo.currentData()))
