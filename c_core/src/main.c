@@ -217,6 +217,9 @@ static int evacuation_step(Scenario *sc, ResultFlags *flags, EvacSummary *evac_o
     EvacSummary evac;
     char        path[WF_PATH_MAX];
 
+    if (sc->hiker_count == 0) {
+        log_warn("시나리오에 등산객이 없어 대피 안내를 계산하지 않음 ([trails] hiker_file 확인)");
+    }
     log_progress(82, "등산객 대피 경로 계산 중 (%d팀)", sc->hiker_count);
     if (!run_evacuation(sc, &evac)) {
         return WF_ERR_MEMORY;
@@ -269,7 +272,7 @@ static int conservative_evacuation(Scenario *sc, const MonteCarloResult *mc, Eva
 static int montecarlo_step(Scenario *sc, ResultFlags *flags, const EvacSummary *normal_evac)
 {
     MonteCarloResult mc;
-    EvacSummary      conservative;
+    EvacSummary      conservative = { 0, 0, 0, 0, 0, 0, 0 };
     char             path[WF_PATH_MAX];
     int              ok;
 

@@ -233,8 +233,7 @@ int run_evacuation(Scenario *sc, EvacSummary *summary)
     summary->hikers = summary->people = summary->evacuated = 0;
     summary->safe = summary->trapped = summary->at_risk_hikers = summary->at_risk_people = 0;
     if (sc->hiker_count == 0) {
-        log_warn("등산객이 없어 대피 안내를 계산하지 않음");
-        return 1;
+        return 1;   /* 등산객이 없으면 계산할 것이 없음 (경고는 main 에서 한 번만 출력) */
     }
 
     /* 1) 위험 지도 */

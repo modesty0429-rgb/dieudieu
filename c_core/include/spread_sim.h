@@ -18,6 +18,7 @@ typedef struct {
     unsigned int seed;       /* 비화 난수 시드 */
     double   dead_moisture;  /* 지역 공통 죽은 연료 수분 (%) */
     double   interval_max_rate; /* 이번 출력 구간의 최대 확산 속도 (m/분) */
+    int      advanced_this_step; /* 이번 단계에 불이 조금이라도 나아갔으면 1 */
 } FireState;
 
 void sim_result_init(SimResult *res);

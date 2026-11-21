@@ -89,6 +89,7 @@ int fire_state_init(FireState *state)
     state->seed = 0;
     state->dead_moisture = 0.0;
     state->interval_max_rate = 0.0;
+    state->advanced_this_step = 0;
     return 1;
 }
 
@@ -309,6 +310,7 @@ static int spread_from_cell(Scenario *sc, FireState *state, int index, double t,
         if (rate > state->interval_max_rate) {
             state->interval_max_rate = rate;
         }
+        state->advanced_this_step = 1;
 
         cell->progress[dir] += rate * dt;
         distance = grid_neighbor_distance(grid, dir);
@@ -341,6 +343,7 @@ int simulate_fire_step(Scenario *sc, FireState *state, double t, double dt,
     int kept;
 
     /* 1) 화선 진행: 남길 셀만 앞으로 당겨 담는다 (목록을 새로 만들지 않고 제자리에서 정리) */
+    state->advanced_this_step = 0;
     kept = 0;
     for (i = 0; i < state->front.count; i++) {
         int index = state->front.data[i];
@@ -486,8 +489,14 @@ int run_fire_simulation(Scenario *sc, const SimOptions *opts, unsigned int seed,
             next_map += opts->map_every_min;
         }
 
-        /* 5) 불이 완전히 꺼졌으면 끝 */
-        if (state.front.count == 0 && state.burning.count == 0 && !has_pending_ignitions(sc, t)) {
+        /*
+         * 5) 불이 완전히 꺼졌으면 끝
+         *    - 화선도 연소 셀도 없음, 또는
+         *    - 불꽃이 하나도 없고 이번 단계에 불이 전혀 나아가지 못함 (연료가 젖어 확산 속도 0)
+         *    (불꽃이 짧은 초지에서도 화선이 나아가는 동안에는 꺼진 것으로 보지 않는다)
+         */
+        if (state.burning.count == 0 && !has_pending_ignitions(sc, t) &&
+            (state.front.count == 0 || !state.advanced_this_step)) {
             res->fire_out = 1;
             if (res->steps[res->step_count - 1].time_min < t_end - TIME_EPSILON) {
                 ok = ok && record_stats(sc, &state, t_end, &weather, res);

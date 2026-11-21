@@ -346,18 +346,76 @@ static void set_segment(Grid *grid, const SegmentCandidate *seg, int limit, Cell
 }
 
 /*
+ * 후보 조각을 하나씩 실제로 시뮬레이션해 보고, 피해가 가장 작아지는 후보 번호를 돌려준다.
+ * 현재 피해(current_damage)보다 줄어드는 후보가 없으면 -1, 메모리 부족이면 -2
+ */
+static int try_candidates(Scenario *sc, const double *weights, unsigned int seed,
+                          const SegmentCandidate *candidates, int count, int limit,
+                          double current_damage, double *best_damage)
+{
+    int best = -1;
+    int i;
+
+    *best_damage = current_damage;
+    for (i = 0; i < count; i++) {
+        double damage;
+        int    ok;
+
+        set_segment(&sc->grid, &candidates[i], limit, CELL_FIREBREAK);    /* 잠시 방화선을 놓고 */
+        ok = simulate_damage(sc, weights, seed, &damage);                  /* 시뮬레이션해 본 뒤 */
+        set_segment(&sc->grid, &candidates[i], limit, CELL_UNBURNED);     /* 다시 치운다 */
+        if (!ok) {
+            return -2;
+        }
+        if (damage < *best_damage - 1e-9) {
+            *best_damage = damage;
+            best = i;
+        }
+    }
+    return best;
+}
+
+/* 고른 조각을 계획에 확정하고 단계 기록을 남긴다. 성공 1, 실패 0 */
+static int accept_segment(FirebreakPlan *plan, const SegmentCandidate *seg, int limit,
+                          double damage_before, double damage_after)
+{
+    FirebreakStep *step = &plan->steps[plan->step_count];
+    int            added = (seg->cell_count < limit) ? seg->cell_count : limit;
+    int            k;
+
+    for (k = 0; k < added; k++) {
+        if (intarray_push(&plan->cells, seg->cells[k]) != 0) {
+            return 0;
+        }
+    }
+    step->center_x = seg->center_x;
+    step->center_y = seg->center_y;
+    step->cells_added = added;
+    step->score = seg->score;
+    step->damage_before = damage_before;
+    step->damage_after = damage_after;
+    plan->step_count++;
+    log_info("방화선 %d단계: (%d, %d) 중심 %d칸 → 피해 가치 %.0f → %.0f",
+             plan->step_count, step->center_x, step->center_y, added, damage_before, damage_after);
+    return 1;
+}
+
+/*
  * optimize_firebreak: 방화선 sc->supp.firebreak_cells 칸을 탐욕법으로 배치한다.
+ *   반복: ① 현재 상태의 점화 트리로 하위 가치 계산 → ② 점수 상위 후보 조각 고르기
+ *         → ③ 후보마다 실제 시뮬레이션 (try_candidates) → ④ 가장 좋은 조각 확정 (accept_segment)
+ *         → 확정한 방화선을 놓고 다시 시뮬레이션 (다음 반복의 점화 트리를 위해)
+ *   K칸을 다 쓰거나, 어떤 후보도 피해를 줄이지 못하면 멈춘다.
  * weights: 셀 가치, seed: 비교용 시뮬레이션의 난수 시드 (모든 후보를 같은 조건에서 비교)
  * 결과는 plan 에 저장되고, 함수가 끝나면 격자의 방화선 표시는 지워진다. 성공 1, 실패 0
  */
 int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, FirebreakPlan *plan)
 {
     Grid   *grid = &sc->grid;
-    int     total = grid->width * grid->height;
     int     budget = sc->supp.firebreak_cells;
-    double *values = (double *)wf_malloc((size_t)total * sizeof(double), "하위 가치");
-    double  current_damage;
-    int     ok = 1;
+    double *values = (double *)wf_malloc((size_t)grid->width * (size_t)grid->height * sizeof(double), "하위 가치");
+    double  current_damage = 0.0;
+    int     ok;
 
     firebreak_plan_init(plan);
     if (values == NULL) {
@@ -368,58 +426,30 @@ int optimize_firebreak(Scenario *sc, const double *weights, unsigned int seed, F
 
     while (ok && plan->cells.count < budget && plan->step_count < MAX_FIREBREAK_STEPS) {
         SegmentCandidate top[FIREBREAK_CANDIDATES];
-        int              candidate_count, best = -1, i;
-        int              limit = budget - plan->cells.count;
-        double           best_damage = current_damage;
+        int              limit = budget - plan->cells.count;   /* 남은 칸 수 */
+        int              count, best;
+        double           best_damage;
 
-        /* 1) 현재 상태(지금까지의 방화선 포함)의 점화 트리 → 하위 가치 */
+        /* ① 하위 가치, ② 후보 고르기 */
         if (!compute_subtree_values(grid, weights, values)) {
             ok = 0;
             break;
         }
-        /* 2) 점수 상위 후보 고르기 */
-        candidate_count = pick_top_candidates(sc, values, top);
-        if (candidate_count == 0) {
+        count = pick_top_candidates(sc, values, top);
+        if (count == 0) {
             break;
         }
-        /* 3) 후보마다 실제로 시뮬레이션해 보기 */
-        for (i = 0; i < candidate_count && ok; i++) {
-            double damage;
-            set_segment(grid, &top[i], limit, CELL_FIREBREAK);
-            ok = simulate_damage(sc, weights, seed, &damage);
-            set_segment(grid, &top[i], limit, CELL_UNBURNED);
-            if (damage < best_damage - 1e-9) {
-                best_damage = damage;
-                best = i;
-            }
+        /* ③ 후보 시험 */
+        best = try_candidates(sc, weights, seed, top, count, limit, current_damage, &best_damage);
+        if (best == -2) {
+            ok = 0;
+            break;
         }
-        if (!ok || best < 0) {
+        if (best < 0) {
             break;   /* 더 이상 피해가 줄지 않음 */
         }
-
-        /* 4) 가장 좋은 조각을 확정 */
-        {
-            FirebreakStep *step = &plan->steps[plan->step_count];
-            int            added = (top[best].cell_count < limit) ? top[best].cell_count : limit;
-            int            k;
-
-            for (k = 0; k < added; k++) {
-                if (intarray_push(&plan->cells, top[best].cells[k]) != 0) {
-                    ok = 0;
-                }
-            }
-            step->center_x = top[best].center_x;
-            step->center_y = top[best].center_y;
-            step->cells_added = added;
-            step->score = top[best].score;
-            step->damage_before = current_damage;
-            step->damage_after = best_damage;
-            plan->step_count++;
-            log_info("방화선 %d단계: (%d, %d) 중심 %d칸 → 피해 가치 %.0f → %.0f",
-                     plan->step_count, step->center_x, step->center_y, added, current_damage, best_damage);
-        }
-
-        /* 확정한 방화선을 표시하고 다시 시뮬레이션 (다음 단계의 점화 트리를 위해) */
+        /* ④ 확정하고, 확정한 방화선으로 다시 시뮬레이션 */
+        ok = accept_segment(plan, &top[best], limit, current_damage, best_damage);
         apply_firebreak(grid, plan);
         ok = ok && simulate_damage(sc, weights, seed, &current_damage);
     }

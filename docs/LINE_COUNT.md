@@ -1,12 +1,12 @@
 # 줄 수 현황 (LINE_COUNT)
 
-> `python tools/count_lines.py` 로 자동 생성 — 2026-11-20
+> `python tools/count_lines.py` 로 자동 생성 — 2026-11-21
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
-| C | 8921 | 약 8,000 | 112% |
-| Python | 4165 | 약 4,000 | 104% |
-| **합계** | **13086** | **약 12,000** | **109%** |
+| C | 9016 | 약 8,000 | 113% |
+| Python | 4371 | 약 4,000 | 109% |
+| **합계** | **13387** | **약 12,000** | **112%** |
 
 ## C
 
@@ -29,7 +29,7 @@
 | `c_core/include/scenario_io.h` | 14 | 7 | 4 | 3 |
 | `c_core/include/spotting.h` | 15 | 8 | 4 | 3 |
 | `c_core/include/spread_rate.h` | 24 | 15 | 5 | 4 |
-| `c_core/include/spread_sim.h` | 37 | 26 | 5 | 6 |
+| `c_core/include/spread_sim.h` | 38 | 27 | 5 | 6 |
 | `c_core/include/suppression.h` | 48 | 34 | 6 | 8 |
 | `c_core/include/suppression_eval.h` | 41 | 29 | 6 | 6 |
 | `c_core/include/trail_io.h` | 19 | 11 | 4 | 4 |
@@ -37,15 +37,15 @@
 | `c_core/include/weather.h` | 16 | 9 | 4 | 3 |
 | `c_core/include/wf_config.h` | 46 | 26 | 13 | 7 |
 | `c_core/include/wf_types.h` | 383 | 271 | 70 | 42 |
-| `c_core/src/console_view.c` | 506 | 407 | 56 | 43 |
+| `c_core/src/console_view.c` | 507 | 408 | 56 | 43 |
 | `c_core/src/dynarray.c` | 90 | 62 | 17 | 11 |
-| `c_core/src/evac_alert.c` | 285 | 203 | 53 | 29 |
-| `c_core/src/evac_route.c` | 352 | 248 | 69 | 35 |
-| `c_core/src/fuel_moisture.c` | 277 | 192 | 57 | 28 |
+| `c_core/src/evac_alert.c` | 284 | 202 | 53 | 29 |
+| `c_core/src/evac_route.c` | 401 | 277 | 83 | 41 |
+| `c_core/src/fuel_moisture.c` | 280 | 195 | 57 | 28 |
 | `c_core/src/grid.c` | 183 | 127 | 34 | 22 |
 | `c_core/src/hiker.c` | 191 | 137 | 38 | 16 |
 | `c_core/src/log.c` | 145 | 101 | 23 | 21 |
-| `c_core/src/main.c` | 460 | 360 | 59 | 41 |
+| `c_core/src/main.c` | 463 | 363 | 59 | 41 |
 | `c_core/src/map_io.c` | 440 | 322 | 77 | 41 |
 | `c_core/src/montecarlo.c` | 280 | 213 | 40 | 27 |
 | `c_core/src/output_csv.c` | 181 | 134 | 31 | 16 |
@@ -55,13 +55,13 @@
 | `c_core/src/scenario_io.c` | 690 | 553 | 71 | 66 |
 | `c_core/src/spotting.c` | 86 | 50 | 26 | 10 |
 | `c_core/src/spread_rate.c` | 107 | 55 | 41 | 11 |
-| `c_core/src/spread_sim.c` | 504 | 366 | 87 | 51 |
-| `c_core/src/suppression.c` | 564 | 427 | 88 | 49 |
+| `c_core/src/spread_sim.c` | 513 | 370 | 92 | 51 |
+| `c_core/src/suppression.c` | 594 | 448 | 95 | 51 |
 | `c_core/src/suppression_eval.c` | 230 | 175 | 30 | 25 |
 | `c_core/src/trail_io.c` | 697 | 535 | 97 | 65 |
 | `c_core/src/util.c` | 527 | 380 | 91 | 56 |
 | `c_core/src/weather.c` | 255 | 184 | 46 | 25 |
-| **합계** | **8921** | **6555** | **1440** | **926** |
+| **합계** | **9016** | **6616** | **1466** | **934** |
 
 ## Python
 
@@ -90,6 +90,7 @@
 | `gui/views/scenario_panel.py` | 405 | 324 | 34 | 47 |
 | `gui/views/stats_view.py` | 207 | 164 | 17 | 26 |
 | `gui/views/suppression_view.py` | 223 | 178 | 15 | 30 |
-| `gui/views/weather_dialog.py` | 156 | 127 | 9 | 20 |
+| `gui/views/weather_dialog.py` | 157 | 128 | 9 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
-| **합계** | **4165** | **2979** | **563** | **623** |
+| `tools/run_tests.py` | 205 | 148 | 22 | 35 |
+| **합계** | **4371** | **3128** | **585** | **658** |

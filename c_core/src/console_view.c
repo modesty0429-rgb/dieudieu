@@ -339,7 +339,8 @@ void print_sim_statistics(const SimResult *res, double every_min)
     printf("-------------------------------------------------\n");
     printf(" 최종 피해 면적 %.1f ha (%d칸), 최대 확산 속도 %.2f m/분, 비화 %d회, %s\n",
            res->final_area_ha, res->burned_cells, res->max_spread_rate, res->spot_fire_count,
-           res->fire_out ? "시간 안에 진화(자연 소멸)" : "시뮬레이션 종료 시점에도 연소 중");
+           (res->burned_cells == 0) ? "시간 안에 불이 붙지 않음"
+           : res->fire_out ? "시간 안에 불이 꺼짐 (자연 소멸)" : "시뮬레이션 종료 시점에도 연소 중");
     fflush(stdout);
 }
 

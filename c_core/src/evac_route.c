@@ -236,115 +236,164 @@ static int build_route_from_labels(const int *prev_node, const int *prev_edge, i
 }
 
 /*
+ * 노드별 탐색 기록 (다익스트라의 "라벨")
+ * 배열 5개를 하나로 묶어 함수에 넘기기 쉽게 했다. 모두 node_count 크기의 동적 배열.
+ */
+typedef struct {
+    double *best_margin;   /* 그 노드까지 가는 가장 좋은 경로의 최소 안전 여유 */
+    double *best_time;     /* 그때의 도착 시각 */
+    int    *prev_node;     /* 그 경로에서 바로 앞 노드 (경로를 거꾸로 따라갈 때 사용) */
+    int    *prev_edge;     /* 바로 앞 노드에서 온 간선 */
+    int    *done;          /* 1이면 확정된 노드 (더 좋은 경로가 나올 수 없음) */
+} RouteLabels;
+
+/* 라벨 배열을 할당하고 "아직 도착 못 함"으로 초기화한다. 성공 1, 실패 0 */
+static int labels_create(RouteLabels *labels, int n)
+{
+    int i;
+
+    labels->best_margin = (double *)wf_malloc((size_t)n * sizeof(double), "경로 탐색 여유");
+    labels->best_time = (double *)wf_malloc((size_t)n * sizeof(double), "경로 탐색 시각");
+    labels->prev_node = (int *)wf_malloc((size_t)n * sizeof(int), "경로 탐색 이전 노드");
+    labels->prev_edge = (int *)wf_malloc((size_t)n * sizeof(int), "경로 탐색 이전 간선");
+    labels->done = (int *)wf_calloc((size_t)n, sizeof(int), "경로 탐색 완료 표시");
+    if (labels->best_margin == NULL || labels->best_time == NULL || labels->prev_node == NULL ||
+        labels->prev_edge == NULL || labels->done == NULL) {
+        return 0;
+    }
+    for (i = 0; i < n; i++) {
+        labels->best_margin[i] = -DANGER_NONE;
+        labels->best_time[i] = NO_LABEL_TIME;
+        labels->prev_node[i] = -1;
+        labels->prev_edge[i] = -1;
+    }
+    return 1;
+}
+
+static void labels_free(RouteLabels *labels)
+{
+    free(labels->best_margin);
+    free(labels->best_time);
+    free(labels->prev_node);
+    free(labels->prev_edge);
+    free(labels->done);
+}
+
+/*
+ * 확정된 노드 node 에서 연결된 간선을 하나씩 걸어 보고,
+ * 이웃 노드의 기록보다 좋으면 기록을 바꾸고 우선순위 큐에 넣는다. ("완화" 단계)
+ * 성공 1, 메모리 부족 0
+ */
+static int relax_neighbors(const Scenario *sc, const DangerMap *danger, int node, double speed_kmh,
+                           RouteLabels *labels, PriorityQueue *pq)
+{
+    const TrailGraph *g = &sc->trails;
+    int               k;
+
+    for (k = 0; k < g->adjacent[node].count; k++) {
+        int              edge_index = g->adjacent[node].data[k];
+        const TrailEdge *edge = &g->edges[edge_index];
+        int              other = (edge->from == node) ? edge->to : edge->from;
+        double           end_time, edge_margin, new_margin;
+
+        if (labels->done[other]) {
+            continue;
+        }
+        walk_edge(sc, danger, edge_index, node, labels->best_time[node], speed_kmh, &end_time, &edge_margin);
+        /* 경로의 최소 여유 = min(지금까지의 최소 여유, 이 간선의 최소 여유) */
+        new_margin = (edge_margin < labels->best_margin[node]) ? edge_margin : labels->best_margin[node];
+
+        if (label_is_better(sc, new_margin, end_time, labels->best_margin[other], labels->best_time[other])) {
+            labels->best_margin[other] = new_margin;
+            labels->best_time[other] = end_time;
+            labels->prev_node[other] = node;
+            labels->prev_edge[other] = edge_index;
+            if (pq_push(pq, -capped_margin(sc, new_margin), end_time, other) != 0) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+/* 도착할 수 있었던 안전한 목적지 중 기록이 가장 좋은 노드. 없으면 -1 */
+static int pick_best_exit(const Scenario *sc, const DangerMap *danger, const RouteLabels *labels)
+{
+    int best_exit = -1;
+    int i;
+
+    for (i = 0; i < sc->trails.node_count; i++) {
+        if (labels->best_time[i] >= NO_LABEL_TIME || !node_is_safe_exit(sc, danger, i)) {
+            continue;
+        }
+        if (best_exit < 0 || label_is_better(sc, labels->best_margin[i], labels->best_time[i],
+                                             labels->best_margin[best_exit], labels->best_time[best_exit])) {
+            best_exit = i;
+        }
+    }
+    return best_exit;
+}
+
+/*
  * find_safest_route: start_node 에서 start_time 에 출발해 안전한 대피 목적지까지 가는 경로를 찾는다.
- *   1) 출발 노드를 우선순위 큐에 넣는다. (키: -여유, 도착 시각 → 여유가 큰 것부터 꺼냄)
- *   2) 큐에서 가장 좋은 노드를 꺼내, 연결된 간선을 걸어 이웃 노드의 (여유, 시각)을 계산한다.
- *   3) 이웃의 기록보다 좋으면 갱신하고 큐에 넣는다.
- *   4) 큐가 빌 때까지 반복한 뒤, 목적지 노드 중 가장 좋은 기록을 고른다.
+ *   1) 출발 노드의 기록(여유, 시각)을 정하고 우선순위 큐에 넣는다.
+ *      (키: -여유, 도착 시각 → 여유가 큰 것부터, 같으면 빠른 것부터 꺼냄)
+ *   2) 큐에서 가장 좋은 노드를 꺼내 확정하고, 이웃 노드의 기록을 갱신한다. (relax_neighbors)
+ *   3) 큐가 빌 때까지 반복한 뒤, 안전한 목적지 중 가장 좋은 기록을 고른다. (pick_best_exit)
+ *   4) 앞 노드 기록을 거꾸로 따라가 경로를 만든다. (build_route_from_labels)
  * route 에 결과를 저장한다. 목적지에 갈 수 있으면 1, 없으면 0, 메모리 부족 -1
  */
 int find_safest_route(const Scenario *sc, const DangerMap *danger, int start_node,
                       double start_time, double speed_kmh, Route *route)
 {
-    const TrailGraph *g = &sc->trails;
-    int               n = g->node_count;
-    double           *best_margin = (double *)wf_malloc((size_t)n * sizeof(double), "경로 탐색 여유");
-    double           *best_time = (double *)wf_malloc((size_t)n * sizeof(double), "경로 탐색 시각");
-    int              *prev_node = (int *)wf_malloc((size_t)n * sizeof(int), "경로 탐색 이전 노드");
-    int              *prev_edge = (int *)wf_malloc((size_t)n * sizeof(int), "경로 탐색 이전 간선");
-    int              *done = (int *)wf_calloc((size_t)n, sizeof(int), "경로 탐색 완료 표시");
-    PriorityQueue     pq;
-    PQItem            item;
-    int               best_exit = -1;
-    int               status = 0;
-    int               i, k;
+    const TrailNode *start = &sc->trails.nodes[start_node];
+    RouteLabels      labels;
+    PriorityQueue    pq;
+    PQItem           item;
+    int              best_exit;
+    int              status = 0;
 
     route_init(route);
     pq_init(&pq);
-    if (best_margin == NULL || best_time == NULL || prev_node == NULL || prev_edge == NULL || done == NULL) {
+    if (!labels_create(&labels, sc->trails.node_count)) {
+        labels_free(&labels);
+        return -1;
+    }
+
+    /* 1) 출발 노드 */
+    labels.best_margin[start_node] = danger_time_at(danger, start->x, start->y) - start_time;
+    labels.best_time[start_node] = start_time;
+    if (pq_push(&pq, -capped_margin(sc, labels.best_margin[start_node]), start_time, start_node) != 0) {
         status = -1;
-        goto cleanup;
     }
 
-    for (i = 0; i < n; i++) {
-        best_margin[i] = -DANGER_NONE;
-        best_time[i] = NO_LABEL_TIME;
-        prev_node[i] = -1;
-        prev_edge[i] = -1;
-    }
-    {
-        const TrailNode *s = &g->nodes[start_node];
-        best_margin[start_node] = danger_time_at(danger, s->x, s->y) - start_time;
-        best_time[start_node] = start_time;
-    }
-    if (pq_push(&pq, -capped_margin(sc, best_margin[start_node]), start_time, start_node) != 0) {
-        status = -1;
-        goto cleanup;
-    }
-
-    while (pq_pop(&pq, &item)) {
-        int node = item.value;
-        if (done[node]) {
-            continue;   /* 이미 더 좋은 기록으로 처리한 노드 */
+    /* 2)~3) 가장 좋은 노드부터 확정하며 이웃 갱신 */
+    while (status == 0 && pq_pop(&pq, &item)) {
+        if (labels.done[item.value]) {
+            continue;   /* 이미 더 좋은 기록으로 확정한 노드 */
         }
-        done[node] = 1;
-
-        for (k = 0; k < g->adjacent[node].count; k++) {
-            int              edge_index = g->adjacent[node].data[k];
-            const TrailEdge *edge = &g->edges[edge_index];
-            int              other = (edge->from == node) ? edge->to : edge->from;
-            double           end_time, edge_margin, new_margin;
-
-            if (done[other]) {
-                continue;
-            }
-            walk_edge(sc, danger, edge_index, node, best_time[node], speed_kmh, &end_time, &edge_margin);
-            new_margin = (edge_margin < best_margin[node]) ? edge_margin : best_margin[node];
-
-            if (label_is_better(sc, new_margin, end_time, best_margin[other], best_time[other])) {
-                best_margin[other] = new_margin;
-                best_time[other] = end_time;
-                prev_node[other] = node;
-                prev_edge[other] = edge_index;
-                if (pq_push(&pq, -capped_margin(sc, new_margin), end_time, other) != 0) {
-                    status = -1;
-                    goto cleanup;
-                }
-            }
-        }
-    }
-
-    /* 도착할 수 있었던 목적지 중 가장 좋은 곳 */
-    for (i = 0; i < n; i++) {
-        if (best_time[i] >= NO_LABEL_TIME || !node_is_safe_exit(sc, danger, i)) {
-            continue;
-        }
-        if (best_exit < 0 ||
-            label_is_better(sc, best_margin[i], best_time[i], best_margin[best_exit], best_time[best_exit])) {
-            best_exit = i;
-        }
-    }
-
-    if (best_exit >= 0) {
-        if (!build_route_from_labels(prev_node, prev_edge, best_exit, route)) {
+        labels.done[item.value] = 1;
+        if (!relax_neighbors(sc, danger, item.value, speed_kmh, &labels, &pq)) {
             status = -1;
-            goto cleanup;
         }
-        route->exit_node = best_exit;
-        route->travel_time_min = best_time[best_exit] - start_time;
-        route->min_margin_min = best_margin[best_exit];
-        route->found = 1;
-        status = 1;
     }
 
-cleanup:
-    /* 중간에 실패해도 여기로 와서 모든 메모리를 해제한다 */
+    /* 4) 가장 좋은 목적지까지의 경로 */
+    best_exit = (status == 0) ? pick_best_exit(sc, danger, &labels) : -1;
+    if (best_exit >= 0) {
+        if (build_route_from_labels(labels.prev_node, labels.prev_edge, best_exit, route)) {
+            route->exit_node = best_exit;
+            route->travel_time_min = labels.best_time[best_exit] - start_time;
+            route->min_margin_min = labels.best_margin[best_exit];
+            route->found = 1;
+            status = 1;
+        } else {
+            status = -1;
+        }
+    }
+
     pq_free(&pq);
-    free(best_margin);
-    free(best_time);
-    free(prev_node);
-    free(prev_edge);
-    free(done);
+    labels_free(&labels);
     if (status < 0) {
         route_free(route);
     }

@@ -220,6 +220,9 @@ double moisture_damping(double moisture_pct, double extinction_pct)
         return 0.0;
     }
     r = clamp_double(moisture_pct / extinction_pct, 0.0, 1.0);
+    if (r >= 1.0) {
+        return 0.0;   /* 소화 수분 이상: 식으로는 0이지만 실수 계산 오차로 아주 작은 양수가 나올 수 있어 직접 0 */
+    }
     eta = 1.0 - 2.59 * r + 5.11 * r * r - 3.52 * r * r * r;
     return clamp_double(eta, 0.0, 1.0);
 }

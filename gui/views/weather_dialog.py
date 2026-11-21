@@ -47,6 +47,7 @@ class WeatherDialog(QDialog):
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setText("이 기상으로 설정")
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(False)
+        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("취소")
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
