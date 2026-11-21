@@ -23,10 +23,29 @@ SEASON_PRESET_FILE = SCENARIO_DIR / "season_presets.ini"
 GUI_SCENARIO_NAME = "gui_custom"            # GUI에서 바꾼 설정으로 만드는 시나리오 이름
 
 
+ENGINE_NAME = "wildfire.exe" if sys.platform.startswith("win") else "wildfire"
+
+
+def expected_engine_path() -> Path:
+    """build.bat 이 엔진을 만드는 위치: c_core/bin/wildfire.exe"""
+    return ENGINE_DIR / "bin" / ENGINE_NAME
+
+
 def engine_path() -> Path:
-    """C 엔진 실행 파일 경로. (Windows: wildfire.exe, 그 외: wildfire)"""
-    name = "wildfire.exe" if sys.platform.startswith("win") else "wildfire"
-    return ENGINE_DIR / "bin" / name
+    """
+    실제로 쓸 C 엔진 실행 파일 경로.
+      1) c_core/bin/wildfire.exe (build.bat 결과)
+      2) 없으면 c_core 안의 다른 곳에서 찾은 wildfire.exe 중 가장 최근 것
+         (Visual Studio 빈 프로젝트로 빌드하면 x64/Debug 같은 폴더에 생기기 때문)
+    어디에도 없으면 1)의 경로를 돌려준다. (오류 메시지에 이 경로를 보여 줌)
+    """
+    expected = expected_engine_path()
+    if expected.exists():
+        return expected
+    found = [p for p in ENGINE_DIR.rglob(ENGINE_NAME) if p.is_file()]
+    if found:
+        return max(found, key=lambda p: p.stat().st_mtime)
+    return expected
 
 
 def resolve_engine_path(path_text: str) -> Path:

@@ -302,3 +302,12 @@
 - 자동 테스트 23/23 통과, pyflakes 경고 0개
 - GUI offscreen: all 모드 실행 → 리포트 저장까지 확인
 - **팀 PC에서 확인 필요**: MSVC `/W4` 빌드, Windows 화면, 기상청 API 실제 호출
+
+## 7단계 이후 수정 — "엔진 실행 파일이 없습니다" 오류 대응 (2026-11-21)
+
+- 팀 PC에서 build.bat 이 성공했는데 GUI가 엔진을 못 찾는 문제가 있었다.
+  - build.bat 은 자기 폴더의 `bin\`에 exe 를 만들므로, GUI가 쓰는 폴더와 다른 복사본(ZIP을 두 번 풀어 생긴 `dieudieu-main\dieudieu-main` 등)에서 빌드했을 가능성이 크다.
+- **`build.bat`**: 빌드 후 `bin\wildfire.exe`가 실제로 있는지 확인(없으면 백신 격리 안내). 성공 메시지에 exe 의 **전체 경로** 출력
+- **`app_config.engine_path()`**: `c_core\bin`에 없으면 `c_core` 안의 다른 `wildfire.exe`(Visual Studio 빈 프로젝트의 `x64\Debug` 등) 중 가장 최근 것을 사용
+- **GUI 오류 메시지**: 찾은 경로, GUI가 쓰는 `c_core` 폴더, 확인할 점(다른 복사본, 백신)을 함께 표시. `tools/run_tests.py`도 같은 안내 사용
+- **README**: "문제 해결" 항목 추가

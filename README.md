@@ -131,7 +131,16 @@ build.bat
 5. **Ctrl+Shift+B** 로 빌드, **Ctrl+F5** 로 실행.
 
 > `/utf-8` 이 없으면 한글 주석·메시지 때문에 경고(C4819)나 글자 깨짐이 생깁니다.
-> GUI는 `c_core\bin\wildfire.exe` 를 찾으므로, 방법 B로 빌드했다면 만들어진 exe 를 그 위치로 복사하세요.
+> GUI는 먼저 `c_core\bin\wildfire.exe` 를 찾고, 없으면 `c_core` 폴더 안의 다른 `wildfire.exe`(예: 방법 B의 `x64\Debug`)를 찾아 씁니다.
+> Visual Studio 프로젝트를 `c_core` 바깥에 만들었다면 만들어진 exe 를 `c_core\bin\` 으로 복사하세요.
+
+### 문제 해결: "엔진 실행 파일이 없습니다"가 뜰 때
+
+`build.bat` 은 **build.bat 파일이 있는 폴더의 `bin\`** 에 exe 를 만듭니다. 빌드가 성공했는데도 이 오류가 나면 대개 **다른 복사본에서 빌드한 경우**입니다.
+
+- GitHub에서 ZIP으로 받으면 `dieudieu-main\dieudieu-main\` 처럼 폴더가 두 겹이 되기 쉽습니다. 압축을 여러 번 풀었거나 ZIP 안에서 바로 실행하지 않았는지 확인하세요.
+- GUI 오류 메시지의 "이 GUI 가 쓰는 c_core 폴더"와, 빌드 끝에 나오는 `[빌드 성공] (경로)\bin\wildfire.exe` 의 경로가 같은지 비교하세요.
+- 경로가 같은데도 exe 가 없으면 백신(Windows 보안 → 보호 기록)이 격리했는지 확인하세요.
 
 ### (참고) macOS / Linux
 

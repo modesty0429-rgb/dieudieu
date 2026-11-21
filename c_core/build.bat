@@ -27,7 +27,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if not exist bin\wildfire.exe (
+    echo.
+    echo [경고] 컴파일은 끝났지만 bin\wildfire.exe 가 없습니다. 백신 프로그램이 격리했는지 확인하세요.
+    exit /b 1
+)
+
 echo.
-echo [빌드 성공] bin\wildfire.exe
+echo [빌드 성공] %CD%\bin\wildfire.exe
+echo GUI 는 이 폴더의 exe 를 사용합니다. GUI 를 실행하는 저장소 폴더와 같은 곳인지 확인하세요.
 echo 실행 예: bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode printmap
 endlocal

@@ -183,7 +183,8 @@ def main() -> int:
     exe = app_config.engine_path()
     print(f"엔진: {exe}")
     if not exe.exists():
-        print("엔진 실행 파일이 없습니다. c_core 폴더에서 build.bat (또는 build.sh)을 먼저 실행하세요.")
+        from services.engine_runner import engine_missing_help
+        print("\n".join(engine_missing_help(exe)))
         return 1
     with tempfile.TemporaryDirectory(prefix="wildfire_test_") as folder:
         tmp = Path(folder)

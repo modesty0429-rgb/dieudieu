@@ -47,6 +47,16 @@ def parse_engine_line(line: str) -> EngineLine:
     return EngineLine(tag, text)
 
 
+def engine_missing_help(exe: Path) -> list[str]:
+    """엔진 실행 파일이 없을 때 보여 줄 안내 (어디를 찾았는지, 무엇을 확인할지)"""
+    return [
+        f"엔진 실행 파일이 없습니다: {exe}",
+        f"→ 이 GUI 가 쓰는 c_core 폴더: {app_config.ENGINE_DIR}",
+        "→ 바로 이 c_core 폴더에서 build.bat 을 실행하세요. (다른 폴더에 압축을 푼 복사본에서 빌드하면 그 복사본에 exe 가 생깁니다)",
+        "→ 빌드가 끝났는데도 없으면 백신 프로그램이 wildfire.exe 를 격리했는지 확인하세요.",
+    ]
+
+
 class _EngineWorker(QObject):
     """별도 스레드에서 실제로 엔진을 실행하는 일꾼"""
 
@@ -111,9 +121,11 @@ class EngineRunner(QObject):
             return False
         exe = app_config.engine_path()
         if not exe.exists():
-            self.line_received.emit(EngineLine(
-                "ERROR", f"엔진 실행 파일이 없습니다: {exe}  → c_core 폴더에서 build.bat 을 먼저 실행하세요"))
+            for text in engine_missing_help(exe):
+                self.line_received.emit(EngineLine("ERROR", text))
             return False
+        if exe != app_config.expected_engine_path():
+            self.line_received.emit(EngineLine("WARN", f"c_core/bin 에 엔진이 없어 다른 위치의 엔진을 사용합니다: {exe}"))
 
         command = [str(exe), str(scenario_path.resolve()), "--mode", mode, *(extra_args or [])]
         self.line_received.emit(EngineLine("GUI", "실행: " + " ".join(command)))
