@@ -252,7 +252,7 @@ def spot_node_type(spot: Spot) -> str | None:
 def spot_display_name(spot: Spot) -> str:
     """지점 상세 설명에서 고유한 이름만 뽑는다. "지리산정상,정상부표지석" → "지리산정상", "시종점" → "" """
     for token in spot.name.replace("/", ",").split(","):
-        token = "".join(token.split())
+        token = "".join(ch for ch in token if not ch.isspace() and ch not in "\"'()[]")
         if token and token != spot.kind and not any(w in token for w in GENERIC_NAME_WORDS):
             return token
     return ""
@@ -455,7 +455,7 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
       지도 경계에서 잘린 끝     → PARKING "지도경계(방향)"  [가정: 9 km 지도 밖은 안전 지역]
       막다른 끝 중 '시종점' 지점이거나 낮은 곳 → PARKING "들머리"  [가정: 등산로 끝의 낮은 곳은 보통 들머리]
       막다른 끝 중 높은 곳      → POINT
-      정상 근처(300 m)          → SUMMIT 정상 이름 (지점 자료에 정상이 없을 때)
+      정상 위치 근처(300 m)     → SUMMIT 정상 이름 (지점 자료에 정상이 없을 때)
       나머지                    → JUNCTION "갈림길"
     """
     degree = defaultdict(int)
@@ -487,9 +487,9 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
         node.name = node.name if node.spot and node.name else numbered(base)
 
     if nodes and not any(n.type == "SUMMIT" for n in nodes):
-        c = (mb.GRID_SIZE - 1) / 2
-        k = int(np.argmin([(n.x - c) ** 2 + (n.y - c) ** 2 for n in nodes]))
-        if (nodes[k].x - c) ** 2 + (nodes[k].y - c) ** 2 <= 10 ** 2 and nodes[k].type != "PARKING":
+        sx, sy = mb.summit_grid(mountain)
+        k = int(np.argmin([(n.x - sx) ** 2 + (n.y - sy) ** 2 for n in nodes]))
+        if (nodes[k].x - sx) ** 2 + (nodes[k].y - sy) ** 2 <= 10 ** 2 and nodes[k].type != "PARKING":
             nodes[k].type, nodes[k].name = "SUMMIT", mountain["peak"]
     for node in nodes:
         node.name = "".join(node.name.split())[:NAME_MAX_CHARS] or "지점"
@@ -563,6 +563,49 @@ def data_location_hint(path: Path, mountain: dict, crs: str | None, encoding: st
     return hint
 
 
+def add_high_points(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, wanted: int = 2) -> None:
+    """
+    등산객을 둘 노드(대피 목적지가 아닌 곳)가 wanted 개보다 적으면 (예: 등산로가 한 줄뿐인 산)
+    간선 위에서 가장 높은 칸을 노드 "최고점"으로 추가해 간선을 둘로 나눈다. [가정: 등산객은 높은 곳에 있음]
+    """
+    for _ in range(wanted):
+        if sum(1 for n in nodes if n.type not in ("PARKING", "SHELTER")) >= wanted:
+            return
+        best = None
+        for ei, e in enumerate(edges):
+            for ci in range(3, len(e.cells) - 3):                 # 양 끝 노드와 너무 가까운 칸 제외
+                x, y = e.cells[ci]
+                if any((n.x - x) ** 2 + (n.y - y) ** 2 < 15 ** 2 for n in nodes):
+                    continue                                       # 기존 노드와 450 m 이상 떨어진 곳만
+                if best is None or elevation[y, x] > best[0]:
+                    best = (float(elevation[y, x]), ei, ci)
+        if best is None:
+            return
+        _, ei, ci = best
+        e = edges.pop(ei)
+        x, y = e.cells[ci]
+        nodes.append(Node(x, y, "SUMMIT" if not any(n.type == "SUMMIT" for n in nodes) else "POINT",
+                          f"최고점{int(round(best[0]))}m", spot=True))
+        k = len(nodes) - 1
+        edges += [Edge(e.a, k, e.cells[:ci + 1]), Edge(k, e.b, e.cells[ci:])]
+
+
+def ignition_near_trails(ignition: tuple[int, int], nodes: list[Node], folder: Path) -> tuple[int, int]:
+    """
+    기본 발화 지점이 등산로에서 3 km(100칸)보다 멀면 대피 상황이 생기지 않으므로,
+    등산로 노드 무게중심에서 남서쪽 약 1 km 의 탈 수 있는 칸으로 옮긴다. [가정]
+    """
+    xs = np.array([n.x for n in nodes])
+    ys = np.array([n.y for n in nodes])
+    if float(np.min((xs - ignition[0]) ** 2 + (ys - ignition[1]) ** 2)) <= 100 ** 2:
+        return ignition
+    fuel = read_asc(folder / "fuel.asc")[1]
+    target_x, target_y = float(xs.mean()) - 24, float(ys.mean()) + 24
+    fy, fx = np.where(np.isin(fuel, (1, 2, 3, 4, 5)))
+    k = int(np.argmin((fx - target_x) ** 2 + (fy - target_y) ** 2))
+    return int(fx[k]), int(fy[k])
+
+
 def as_path_list(value) -> list[Path]:
     """파일 하나 또는 여러 개 → 목록"""
     if value is None:
@@ -596,6 +639,7 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
     snapped = snap_spots(lines, spots)
     nodes, edges = build_graph(lines, snapped)
     finish_nodes(nodes, edges, elevation, mountain)
+    add_high_points(nodes, edges, elevation)
     if not any(n.type in ("PARKING", "SHELTER") for n in nodes):
         raise ValueError("대피 목적지(주차장·대피소·지도 경계)를 하나도 찾지 못함")
 
@@ -605,6 +649,7 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
     length_km = sum(len(e.cells) for e in edges) * mb.CELL_SIZE_M / 1000.0
 
     info = mb.read_info(mountain_id)
+    info["ignition"] = list(ignition_near_trails(tuple(info["ignition"]), nodes, folder))
     info["trail_source"] = {"files": [p.name for p in line_files + spot_files], "imported": str(date.today()),
                             "nodes": len(nodes), "edges": len(edges), "length_km": round(length_km, 1),
                             "spots_used": sum(1 for n in nodes if n.spot), "hikers": hikers}

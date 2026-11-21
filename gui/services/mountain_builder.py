@@ -1,8 +1,8 @@
 """
 실제 산 데이터 만들기
 
-data/mountains/mountains.json 에 적힌 산(북한산, 설악산, 오대산, 지리산, 팔공산, 한라산)마다
-정상을 가운데로 하는 300×300칸(30 m) = 9 km × 9 km 지도를 만들어 C 엔진이 읽는 파일로 저장한다.
+data/mountains/mountains.json 에 적힌 산(북한산, 설악산, 충남 오대산, 지리산, 전북 팔공산, 한라산)마다
+정상(또는 등산로 자료)을 가운데로 하는 300×300칸(30 m) = 9 km × 9 km 지도를 만들어 C 엔진이 읽는 파일로 저장한다.
 
     data/mountains/<id>/elev.asc        실제 지형 (공개 지형 타일에서 내려받아 다시 샘플링)
     data/mountains/<id>/fuel.asc        연료(숲 종류): 산림청 임상도를 반영했으면 실제 값, 아니면 [임시] 사면 규칙
@@ -17,7 +17,7 @@ data/mountains/mountains.json 에 적힌 산(북한산, 설악산, 오대산, �
 
 실행 예 (저장소 폴더에서, 인터넷 필요):
     python gui/services/mountain_builder.py --all
-    python gui/services/mountain_builder.py --id jirisan
+    python gui/services/mountain_builder.py --id seoraksan
 임상도·등산로 반영은 forest_import.py 참고.
 """
 
@@ -49,7 +49,7 @@ CELL_SIZE_M = 30.0
 DEM_SOURCE = "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13"
 
 # 연료 코드 (fuel_models.csv 와 같음)
-FUEL_GRASS, FUEL_SHRUB, FUEL_CONIFER, FUEL_BROADLEAF, FUEL_MIXED, FUEL_ROCK = 1, 2, 3, 4, 5, 9
+FUEL_GRASS, FUEL_SHRUB, FUEL_CONIFER, FUEL_BROADLEAF, FUEL_MIXED, FUEL_WATER, FUEL_ROCK = 1, 2, 3, 4, 5, 8, 9
 
 
 # ----------------------------------------------------------------------
@@ -65,6 +65,13 @@ def find_mountain(mountain_id: str) -> dict:
         if m["id"] == mountain_id:
             return m
     raise KeyError(f"mountains.json 에 없는 산: {mountain_id}")
+
+
+def summit_grid(mountain: dict) -> tuple[int, int]:
+    """정상의 격자 좌표. 보통 지도 가운데지만, 등산로 자료에 맞춰 지도를 옮긴 산은 'summit' 위치"""
+    lat, lon = mountain.get("summit") or mountain["center"]
+    x, y = latlon_to_grid(np.array([lat]), np.array([lon]), tuple(mountain["center"]))
+    return int(round(float(x[0]))), int(round(float(y[0])))
 
 
 def mountain_folder(mountain_id: str) -> Path:
@@ -184,14 +191,17 @@ def rule_based_fuel(elevation: np.ndarray, cell: float = CELL_SIZE_M) -> np.ndar
     local_mean /= ((2 * k) // 2 + 1) ** 2
     relief = elevation - local_mean
 
+    sea = elevation <= 0.5                            # 고도 0 m = 바다 (섬 산)
     fuel = np.full(elevation.shape, FUEL_MIXED, dtype=int)
     fuel[(aspect >= 125) & (aspect <= 235)] = FUEL_CONIFER
     fuel[(aspect >= 290) | (aspect <= 70)] = FUEL_BROADLEAF
     fuel[relief > 25] = FUEL_CONIFER                  # 능선
     fuel[relief < -25] = FUEL_BROADLEAF               # 계곡
-    low = elevation < np.percentile(elevation, 12)
+    land = elevation[~sea] if (~sea).any() else elevation
+    low = elevation < np.percentile(land, 12)
     fuel[low & (slope < 4)] = FUEL_GRASS              # 낮고 평평한 곳
     fuel[slope >= 40] = FUEL_ROCK                     # 절벽·암릉
+    fuel[sea] = FUEL_WATER
     return fuel
 
 
@@ -209,14 +219,15 @@ def write_info(mountain_id: str, info: dict) -> None:
     (folder / "info.json").write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def default_ignition(elevation: np.ndarray, fuel: np.ndarray, burnable=(1, 2, 3, 4, 5)) -> tuple[int, int]:
+def default_ignition(elevation: np.ndarray, fuel: np.ndarray, summit: tuple[int, int] | None = None,
+                     burnable=(1, 2, 3, 4, 5)) -> tuple[int, int]:
     """
     기본 발화 지점: 정상에서 남서쪽으로 약 2.4 km 떨어진, 탈 수 있는 셀 중 가장 가까운 곳.
     (봄철 서풍·남서풍이 산 위쪽으로 불을 밀어 올리는 상황을 보여 주기 위함 [가정])
     """
     size = elevation.shape[0]
-    cx = cy = (size - 1) // 2
-    target_x, target_y = cx - 57, cy + 57
+    cx, cy = summit if summit else ((size - 1) // 2, (size - 1) // 2)
+    target_x, target_y = min(max(cx - 57, 10), size - 11), min(max(cy + 57, 10), size - 11)
     ys, xs = np.where(np.isin(fuel, burnable))
     index = int(np.argmin((xs - target_x) ** 2 + (ys - target_y) ** 2))
     return int(xs[index]), int(ys[index])
@@ -233,7 +244,7 @@ def write_scenario(mountain: dict, ignition: tuple[int, int]) -> Path:
                      if has_trails else
                      "# [trails] 없음: 산림청 등산로를 아직 반영하지 않음 (forest_import.py trails 로 반영)\n")
     text = f"""# ============================================================
-# 시나리오: {mountain['name']} ({mountain['peak']} 중심 9 km × 9 km, 실제 지형)
+# 시나리오: {mountain['name']} ({mountain['peak']} 주변 9 km × 9 km, 실제 지형)
 # 지형: {DEM_SOURCE}
 # 연료: {fuel_note}
 # mountain_builder.py 가 만든 파일 (다시 만들면 덮어씀)
@@ -330,12 +341,13 @@ def build_mountain(mountain_id: str, keep_fuel: bool = True) -> dict:
 
     info.update({
         "id": mountain_id, "name": mountain["name"], "peak": mountain["peak"], "center": list(center),
+        "summit_xy": list(summit_grid(mountain)), "note": mountain.get("note", ""),
         "grid_size": GRID_SIZE, "cell_size_m": CELL_SIZE_M, "dem_source": DEM_SOURCE,
         "elevation_range_m": [round(float(elevation.min()), 1), round(float(elevation.max()), 1)],
     })
     info.setdefault("trail_source", None)
     write_info(mountain_id, info)
-    ignition = tuple(info.get("ignition") or default_ignition(elevation, fuel))
+    ignition = tuple(info.get("ignition") or default_ignition(elevation, fuel, summit_grid(mountain)))
     info["ignition"] = list(ignition)
     write_info(mountain_id, info)
     write_scenario(mountain, ignition)
@@ -352,7 +364,7 @@ def scenario_mountain_id(scenario_path: Path) -> str | None:
 
 
 def scenario_label(scenario_path: Path) -> str:
-    """시나리오 고르기 목록에 보일 이름 (실제 산은 '실제 산: 지리산 (천왕봉)')"""
+    """시나리오 고르기 목록에 보일 이름 (실제 산은 '실제 산: 설악산 (대청봉)')"""
     mid = scenario_mountain_id(scenario_path)
     info = read_info(mid) if mid else {}
     if info:
@@ -374,9 +386,9 @@ def data_status_text(scenario_path: Path) -> str:
 
 
 def weather_presets() -> dict[str, tuple[float, float]]:
-    """기상청 예보 받기 위치 목록 {'지리산 (천왕봉)': (위도, 경도)} — mountains.json 에서"""
+    """기상청 예보 받기 위치 목록 {'설악산 (대청봉)': (위도, 경도)} — mountains.json 에서"""
     try:
-        return {f"{m['name']} ({m['peak']})": (m["center"][0], m["center"][1]) for m in load_registry()}
+        return {f"{m['name']} ({m['peak']})": tuple(m.get("summit") or m["center"]) for m in load_registry()}
     except (OSError, ValueError, KeyError):
         return {}
 

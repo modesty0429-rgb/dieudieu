@@ -1,0 +1,38 @@
+{
+  "forest_source": null,
+  "id": "odaesan_geumsan",
+  "name": "오대산(충남 금산)",
+  "peak": "정상",
+  "center": [
+    36.1331,
+    127.3467
+  ],
+  "summit_xy": [
+    127,
+    156
+  ],
+  "note": "산림청 등산로 자료(산 코드 447102201) 위치에 맞춘 지도. 정상 고도는 지형 자료 값(약 645 m). 남서쪽 끝에 대둔산이 보임",
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    104.2,
+    846.0
+  ],
+  "trail_source": {
+    "files": [
+      "PMNTN_오대산_447102201.shp",
+      "PMNTN_SPOT_오대산_447102201.shp"
+    ],
+    "imported": "2026-11-21",
+    "nodes": 4,
+    "edges": 3,
+    "length_km": 4.2,
+    "spots_used": 4,
+    "hikers": 2
+  },
+  "ignition": [
+    70,
+    213
+  ]
+}

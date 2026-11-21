@@ -1,0 +1,38 @@
+{
+  "forest_source": null,
+  "id": "palgongsan_jangsu",
+  "name": "팔공산(전북 장수)",
+  "peak": "정상",
+  "center": [
+    35.6178,
+    127.4691
+  ],
+  "summit_xy": [
+    139,
+    139
+  ],
+  "note": "산림청 등산로 자료(산 코드 457403001) 위치에 맞춘 지도",
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    181.2,
+    1145.7
+  ],
+  "trail_source": {
+    "files": [
+      "PMNTN_팔공산_457403001.shp",
+      "PMNTN_SPOT_팔공산_457403001.shp"
+    ],
+    "imported": "2026-11-21",
+    "nodes": 5,
+    "edges": 4,
+    "length_km": 8.6,
+    "spots_used": 5,
+    "hikers": 2
+  },
+  "ignition": [
+    82,
+    196
+  ]
+}

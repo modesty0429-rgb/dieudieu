@@ -1,4 +1,4 @@
-# 실제 등산로 그래프 (forest_import.py 로 변환, 출처: 산림청 등산로 PMNTN_설악산_대청봉_428302602.shp, PMNTN_오대산_447102201.shp, PMNTN_SPOT_설악산_대청봉_428302602.shp)
+# 실제 등산로 그래프 (forest_import.py 로 변환, 출처: 산림청 등산로 PMNTN_설악산_대청봉_428302602.shp, PMNTN_SPOT_설악산_대청봉_428302602.shp)
 # NODE 번호 종류 x y 이름
 #   종류: JUNCTION 갈림길, SHELTER 대피소, PARKING 주차장(지도 경계·들머리 포함), SUMMIT 정상, POINT 기타
 NODE   1 SUMMIT   148 150 대청봉
