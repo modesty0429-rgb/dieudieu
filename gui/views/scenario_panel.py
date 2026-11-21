@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout, 
 
 from services import app_config
 from services.result_loader import parse_datetime, season_from_ini
+from views.hiker_group import HikerGroup
 from services.scenario_writer import ScenarioOverrides, SeasonPreset, load_season_presets, read_ini
 from views.daylight_group import DaylightGroup
 from views.weather_dialog import WeatherDialog
@@ -79,7 +80,7 @@ class ScenarioPanel(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWidgetResizable(True)
-        self.setMinimumWidth(330)
+        self.setMinimumWidth(360)
         self.presets: list[SeasonPreset] = load_season_presets()
         self.weather_override: tuple[Path, str] | None = None   # (기상 파일, 시작 시각 "YYYY-MM-DD HH:MM")
 
@@ -87,6 +88,8 @@ class ScenarioPanel(QScrollArea):
         layout = QVBoxLayout(content)
         layout.addWidget(self._build_scenario_group())
         layout.addWidget(self._build_ignition_group())
+        self.hiker_group = HikerGroup()                # (10단계) 등산객 팀 수·위치
+        layout.addWidget(self.hiker_group)
         layout.addWidget(self._build_weather_group())
         layout.addWidget(self._build_simulation_group())
         self.daylight_group = DaylightGroup()          # (8단계) 낮/밤
@@ -358,6 +361,7 @@ class ScenarioPanel(QScrollArea):
             relative = os.path.relpath(path, self.current_scenario().parent).replace("\\", "/")
             o.set("weather", "file", relative)
         self.daylight_group.apply(o)
+        self.hiker_group.apply(o, self.current_scenario().parent)
         if self.weather_override is not None and self.weather_file_radio.isChecked():
             o.set("time", "start_datetime", self.weather_override[1])   # 실제 기상의 시작 시각이 우선
         preset = self._current_preset()

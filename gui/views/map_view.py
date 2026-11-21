@@ -348,20 +348,27 @@ class MapView(QWidget):
             return
 
         spots = []
+        # 같은 자리에 여러 팀이 있으면 점은 옆으로 조금씩 비키고, 이름표는 "H2·H10" 처럼 하나로 합친다
+        groups: dict[tuple[int, int], list[int]] = {}
         evacuation = self.evacuation if self.result is not None else None
         if evacuation is not None:
             for hiker in evacuation.hikers:
                 x, y = hiker.position_at(self.time)
+                ids = groups.setdefault((int(round(x)), int(round(y))), [])
                 color = theme.ALERT_COLORS.get(hiker.alert_at(self.time, evacuation.alert_levels), "#ffffff")
                 size = 18 if hiker.id == self.selected_hiker else 13
-                spots.append({"pos": (x + 0.5, y - 0.8), "brush": pg.mkBrush(color), "size": size})
-                self._add_hiker_label(f"H{hiker.id}", x, y)
+                spots.append({"pos": (x + 0.5 + 3.0 * len(ids), y - 0.8), "brush": pg.mkBrush(color), "size": size})
+                ids.append(hiker.id)
         else:
             for hiker in self.map.hikers:
                 node = self.map.node_by_id(hiker.node_id)
                 if node is not None:
-                    spots.append({"pos": (node.x + 0.5, node.y - 0.8), "brush": pg.mkBrush("w"), "size": 13})
-                    self._add_hiker_label(f"H{hiker.id}", node.x, node.y)
+                    ids = groups.setdefault((node.x, node.y), [])
+                    spots.append({"pos": (node.x + 0.5 + 3.0 * len(ids), node.y - 0.8),
+                                  "brush": pg.mkBrush("w"), "size": 13})
+                    ids.append(hiker.id)
+        for (x, y), ids in groups.items():
+            self._add_hiker_label("·".join(f"H{i}" for i in ids), x, y)
         self.hiker_item.setData(spots)
         self._update_hiker_visibility()
 

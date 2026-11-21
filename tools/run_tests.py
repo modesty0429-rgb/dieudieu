@@ -12,6 +12,7 @@
           줄바꿈 형식 (LF / CRLF 입력 파일에서 같은 결과)
           낮/밤 (일몰 시각, 밤 헬기 출동 중지, 밤 보행 기록, 잘못된 설정값)
           사계절 (여름이 봄보다 습하고 덜 탐, 겨울 눈 위로는 안 탐, 눈 위 발화·잘못된 계절은 오류)
+          등산객 팀 (10팀, 등산로 가운데 찍은 위치에서 출발)
   [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기,
            계절 지도 색
 
@@ -276,6 +277,52 @@ def test_season(tmp: Path) -> None:
     check("잘못된 계절 이름은 오류 (season = monsoon)", code == 1 and "season" in text, f"종료 코드 {code}")
 
 
+def test_hiker_teams(tmp: Path) -> None:
+    """
+    (10단계) 등산객 팀 수 1~10, 팀마다 위치 바꾸기.
+    GUI와 같은 방법(hiker_setup)으로 10팀 + 등산로 가운데 위치를 만들고 엔진이 그대로 받는지 본다.
+    """
+    import json
+    print("\n[엔진] 등산객 팀 (10단계)")
+    from services import hiker_setup as hs
+    from services.result_loader import load_scenario_preview
+
+    preview = load_scenario_preview(SCENARIOS / "spring_dry_base.ini")
+    teams = hs.resize_teams(hs.teams_from_hikers(preview.hikers, preview.nodes), 12, preview.nodes)
+    check("팀 수는 최대 10팀", len(teams) == hs.MAX_TEAMS)
+    check("팀 수는 최소 1팀", len(hs.resize_teams(teams, 0, preview.nodes)) == hs.MIN_TEAMS)
+
+    snap = hs.snap_to_trail(preview.nodes, preview.edges, 150, 106)
+    far = hs.snap_to_trail(preview.nodes, preview.edges, 20, 20)
+    near_node = hs.snap_to_trail(preview.nodes, preview.edges, 166, 91)
+    check("등산로 위 가장 가까운 점 (가운데 / 노드 근처 / 너무 멂)",
+          snap is not None and snap.node_id is None and far is None
+          and near_node is not None and near_node.node_id == 7)
+
+    teams[5] = hs.copy_team(teams[5], node_id=None, x=150, y=106)
+    teams[6] = hs.copy_team(teams[6], node_id=None, x=222, y=150)
+    teams[7] = hs.copy_team(teams[7], node_id=None, x=151, y=105)       # 6번 팀과 같은 자리
+    nodes, edges, hikers = hs.build_layout(preview.nodes, preview.edges, teams)
+    new_ids = {n.id for n in nodes} - {n.id for n in preview.nodes}
+    check("찍은 곳에서 등산로를 나눔 (새 지점 2개, 간선 +2, 같은 자리는 같은 지점)",
+          len(new_ids) == 2 and len(edges) == len(preview.edges) + 2 and hikers[5].node_id == hikers[7].node_id)
+
+    trail_file, hiker_file = tmp / "teams_trails.txt", tmp / "teams_hikers.txt"
+    hs.write_trail_file(trail_file, nodes, edges)
+    hs.write_hiker_file(hiker_file, hikers)
+    scenario = write_edge_scenario(tmp, "teams10", "[ignition]\npoint1 = 180, 120\n", with_trails=False)
+    scenario.write_text(scenario.read_text(encoding="utf-8") +
+                        f"[trails]\ntrail_file = {trail_file}\nhiker_file = {hiker_file}\n", encoding="utf-8")
+    code, text = run_engine(scenario, "evac", tmp / "teams10")
+    ok = code == 0 and (tmp / "teams10" / "evacuation.json").exists()
+    check("엔진이 10팀 + 나눈 등산로를 받음", ok, f"종료 코드 {code} {text[-300:] if not ok else ''}")
+    if ok:
+        evac = json.loads((tmp / "teams10" / "evacuation.json").read_text(encoding="utf-8"))
+        starts = [h.get("start_node") for h in evac["hikers"]]
+        check("대피 결과 10팀, 찍은 지점에서 출발",
+              len(evac["hikers"]) == 10 and any(s in new_ids for s in starts), f"출발 노드 {starts}")
+
+
 # ----------------------------------------------------------------------
 # Python 시험
 # ----------------------------------------------------------------------
@@ -378,6 +425,7 @@ def main() -> int:
         test_line_endings(tmp)
         test_daylight(tmp)
         test_season(tmp)
+        test_hiker_teams(tmp)
         test_python_helpers(tmp)
 
     failed = [name for name, ok, _ in results if not ok]
