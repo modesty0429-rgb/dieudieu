@@ -15,6 +15,7 @@
 #include "evac_route.h"
 #include "suppression.h"
 #include "daylight.h"
+#include "season.h"
 #include "wf_config.h"
 #include "util.h"
 #include "log.h"
@@ -202,6 +203,31 @@ static void write_daylight_json(JsonWriter *w, const Scenario *sc, double end_mi
 }
 
 /*
+ * (9단계) 계절 정보: 적용한 계절, 평년 기상 재료, 눈 경계.
+ * GUI는 이 계절로 지도 색(봄 새순·여름 짙은 녹음·가을 단풍·겨울 눈)을 바꾼다.
+ */
+static void write_season_json(JsonWriter *w, const Scenario *sc)
+{
+    const SeasonClimate *c = season_climate(season_effective(sc));
+
+    json_begin_object(w, "season");
+    json_string(w, "key", season_key(season_effective(sc)));
+    json_string(w, "label", c != NULL ? c->label : "");
+    json_bool(w, "weather_from_season", sc->weather_mode == WEATHER_SEASON);
+    json_number(w, "snow_line_m", season_snow_line(sc));
+    json_int(w, "snow_cells", count_snow_cells(sc));
+    json_number(w, "snow_walk_factor", sc->season.snow_walk_factor);
+    if (c != NULL) {
+        json_number(w, "temp_mean_c", c->temp_mean_c);
+        json_number(w, "temp_range_c", c->temp_range_c);
+        json_number(w, "rh_mean_pct", c->rh_mean_pct);
+        json_number(w, "wind_mean_ms", c->wind_mean_ms);
+        json_number(w, "wind_dir_deg", c->wind_dir_deg);
+    }
+    json_end_object(w);
+}
+
+/*
  * summary.json: 시나리오 정보, 격자 정보, 최종 결과, 생성한 파일 목록.
  * Python GUI는 이 파일을 먼저 읽고, 여기에 적힌 파일 이름으로 나머지 결과를 찾는다.
  */
@@ -229,11 +255,13 @@ int write_summary_json(const char *path, const Scenario *sc, const SimResult *re
     json_number(&w, "output_interval_min", sc->sim.output_interval_min);
     json_int(&w, "random_seed", (int)sc->sim.random_seed);
     json_bool(&w, "spotting_enabled", sc->sim.spotting_enabled);
-    json_string(&w, "weather_mode", sc->weather_mode == WEATHER_FIXED ? "fixed" : "file");
+    json_string(&w, "weather_mode", sc->weather_mode == WEATHER_FIXED ? "fixed"
+                                    : sc->weather_mode == WEATHER_SEASON ? "season" : "file");
     json_string(&w, "weather_file", sc->weather_file);
     json_end_object(&w);
 
     write_daylight_json(&w, sc, res->end_time_min > 0.0 ? res->end_time_min : sc->sim.duration_min);
+    write_season_json(&w, sc);
 
     json_begin_object(&w, "grid");
     json_int(&w, "width", sc->grid.width);

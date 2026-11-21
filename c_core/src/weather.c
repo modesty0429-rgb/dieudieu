@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "weather.h"
+#include "season.h"
 #include "util.h"
 #include "log.h"
 
@@ -160,6 +161,9 @@ int load_scenario_weather(Scenario *sc)
 {
     const WeatherSeries *w = &sc->weather;
 
+    if (sc->weather_mode == WEATHER_SEASON) {
+        return generate_season_weather(sc);
+    }
     if (sc->weather_mode == WEATHER_FIXED) {
         log_info("기상: 고정값 사용 (풍속 %.1f m/s, 풍향 %.0f°, 습도 %.0f%%)",
                  sc->fixed_weather.wind_speed_ms, sc->fixed_weather.wind_dir_deg, sc->fixed_weather.rh_pct);

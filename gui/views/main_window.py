@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
         self.panel.run_requested.connect(self.run_simulation)
         self.panel.stop_requested.connect(self.runner.stop)
         self.panel.scenario_changed.connect(self.load_preview)
+        self.panel.season_preview_changed.connect(self._on_season_preview)
         self.panel.ignition_changed.connect(self._on_ignition_changed)
         self.map_view.cell_clicked.connect(self.panel.set_ignition)
         self.playback.time_changed.connect(self.map_view.set_time)
@@ -193,6 +194,10 @@ class MainWindow(QMainWindow):
         self.playback.set_sun_provider(None)
         self.playback.set_range(0.0, preview.start_time)
         self.status_bar.show_message(f"시나리오 '{preview.name}' 지도 ({preview.width}×{preview.height}칸)")
+
+    def _on_season_preview(self, season, snow_line_m: float) -> None:
+        """(9단계) 왼쪽에서 계절을 고르면 바로 지도 색을 바꿔 보여 준다. (다음 실행 결과도 같은 계절)"""
+        self.map_view.set_season(season, snow_line_m)
 
     def load_result_file(self, summary_path: Path, autoplay: bool = True) -> bool:
         """summary.json 을 읽어 지도에 결과를 붙이고 재생을 준비한다."""

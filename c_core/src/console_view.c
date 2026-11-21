@@ -14,6 +14,7 @@
 
 #include "console_view.h"
 #include "daylight.h"
+#include "season.h"
 #include "trail_io.h"
 #include "evac_route.h"
 #include "grid.h"
@@ -383,11 +384,20 @@ void print_scenario_summary(const Scenario *sc)
     printf(" 진행 시간   : %.0f분 (한 단계 %.1f분, 저장 간격 %.0f분)\n",
            sc->sim.duration_min, sc->sim.time_step_min, sc->sim.output_interval_min);
     print_daylight_summary(sc);
+    if (season_snow_line(sc) > 0.0) {
+        printf(" 눈          : 고도 %.0f m 이상 눈 덮임 (%d칸은 타지 않음, 눈길 보행 속도 %.0f%%)\n",
+               season_snow_line(sc), count_snow_cells(sc), sc->season.snow_walk_factor * 100.0);
+    }
     printf(" 지도        : %d x %d 칸, 칸 크기 %.1f m\n", sc->grid.width, sc->grid.height, sc->grid.cell_size_m);
     if (sc->weather_mode == WEATHER_FIXED) {
         printf(" 기상        : 고정값 — 기온 %.1f°C, 습도 %.0f%%, 풍속 %.1f m/s, 풍향 %.0f°\n",
                sc->fixed_weather.temp_c, sc->fixed_weather.rh_pct,
                sc->fixed_weather.wind_speed_ms, sc->fixed_weather.wind_dir_deg);
+    } else if (sc->weather_mode == WEATHER_SEASON) {
+        const SeasonClimate *c = season_climate(season_effective(sc));
+        printf(" 기상        : %s 평년 기상 — 평균 %.1f°C (일교차 %.0f°C), 습도 %.0f%%, 풍속 %.1f m/s, 풍향 %.0f°\n",
+               c ? c->label : "?", c ? c->temp_mean_c : 0.0, c ? c->temp_range_c : 0.0,
+               c ? c->rh_mean_pct : 0.0, c ? c->wind_mean_ms : 0.0, c ? c->wind_dir_deg : 0.0);
     } else {
         printf(" 기상        : 파일 %s\n", sc->weather_file);
     }

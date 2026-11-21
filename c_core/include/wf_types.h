@@ -95,8 +95,18 @@ typedef struct {
 /* 기상 입력 방식 */
 typedef enum {
     WEATHER_FROM_FILE = 0,   /* 기상 CSV 파일 사용 */
-    WEATHER_FIXED            /* 시나리오에 적힌 고정값 사용 */
+    WEATHER_FIXED,           /* 시나리오에 적힌 고정값 사용 */
+    WEATHER_SEASON           /* 계절 평년값으로 하루 변화를 만들어 사용 (9단계) */
 } WeatherMode;
+
+/* 계절 (9단계) */
+#define SEASON_AUTO    (-2)  /* 시작 날짜의 달로 정함 */
+#define SEASON_NONE    (-1)  /* 계절 효과 없음 */
+#define SEASON_SPRING  0
+#define SEASON_SUMMER  1
+#define SEASON_AUTUMN  2
+#define SEASON_WINTER  3
+#define SEASON_COUNT   4
 
 /* ================================================================
  * 3. 등산로 그래프
@@ -273,6 +283,13 @@ typedef struct {
     int    heli_day_only;      /* 1이면 해가 진 뒤에는 헬기가 출동하지 않음 */
 } DaylightSettings;
 
+/* 계절 설정 (9단계) */
+typedef struct {
+    int    season;            /* SEASON_* (기본 SEASON_NONE) */
+    double snow_line_m;       /* 이 고도 이상 눈 덮임. 음수면 계절 기본값 (겨울 600 m) */
+    double snow_walk_factor;  /* 눈길 보행 속도 배율 (0 ~ 1) */
+} SeasonSettings;
+
 /* 연료 수분 설정 */
 typedef struct {
     double initial_dead_moisture_pct;  /* 시작 시 죽은 연료 수분 (%) */
@@ -311,6 +328,7 @@ typedef struct {
     MonteCarloSettings  mc;
     MoistureSettings    moisture;
     DaylightSettings    daylight;
+    SeasonSettings      season;
     WeatherMode         weather_mode;
     WeatherRecord       fixed_weather;  /* weather_mode == WEATHER_FIXED 일 때 사용 */
     IgnitionPoint       ignitions[WF_MAX_IGNITIONS];

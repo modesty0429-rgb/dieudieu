@@ -64,6 +64,8 @@ class MapData:
     hikers: list[Hiker] = field(default_factory=list)
     ignitions: list[tuple[int, int, float]] = field(default_factory=list)
     start_time: datetime | None = None
+    season: str | None = None      # (9단계) 계절 키 spring/summer/autumn/winter (없으면 None)
+    snow_line_m: float = 0.0       # (9단계) 눈 경계 고도, 0 이면 눈 없음
 
     @property
     def height(self) -> int:
@@ -382,6 +384,36 @@ def _load_map(name: str, elevation_path: Path, fuel_path: Path,
     return data
 
 
+SEASON_ALIASES = {"spring": "spring", "봄": "spring", "summer": "summer", "여름": "summer",
+                  "autumn": "autumn", "가을": "autumn", "winter": "winter", "겨울": "winter"}
+DEFAULT_SNOW_LINE = {"winter": 600.0}     # C season.c 의 기본 눈 경계와 같게
+
+
+def season_from_month(month: int) -> str:
+    """월 → 계절 (C season_from_month 와 같음: 3~5 봄, 6~8 여름, 9~11 가을, 12~2 겨울)"""
+    return ("winter", "winter", "spring", "spring", "spring", "summer",
+            "summer", "summer", "autumn", "autumn", "autumn", "winter")[month - 1]
+
+
+def season_from_ini(parser, start: datetime | None) -> tuple[str | None, float]:
+    """
+    시나리오 .ini 의 [season] 을 C 엔진과 같은 규칙으로 해석한다. → (계절 키, 눈 경계 m)
+    season = auto 이거나, 비어 있는데 [weather] mode = season 이면 시작 월로 정한다.
+    """
+    value = parser.get("season", "season", fallback="none").strip().lower()
+    mode = parser.get("weather", "mode", fallback="file").strip().lower()
+    if value == "auto" or (value in ("", "none") and mode == "season"):
+        season = season_from_month(start.month) if start is not None else None
+    else:
+        season = SEASON_ALIASES.get(value)
+    if season is None:
+        return None, 0.0
+    snow = parser.getfloat("season", "snow_line_m", fallback=-1.0)
+    if snow < 0:
+        snow = DEFAULT_SNOW_LINE.get(season, 0.0)
+    return season, snow
+
+
 def load_scenario_preview(ini_path: Path) -> MapData:
     """시나리오 .ini 를 읽어 지도·등산로·발화 지점을 불러온다. (C 엔진을 실행하지 않음)"""
     parser = read_ini(ini_path)
@@ -401,6 +433,7 @@ def load_scenario_preview(ini_path: Path) -> MapData:
                 t = float(parts[2]) if len(parts) > 2 else 0.0
                 data.ignitions.append((int(parts[0]), int(parts[1]), t))
     data.start_time = parse_datetime(parser.get("time", "start_datetime", fallback=""))
+    data.season, data.snow_line_m = season_from_ini(parser, data.start_time)
     return data
 
 
@@ -419,6 +452,9 @@ def load_result(summary_path: Path) -> SimulationResult:
                      engine_path(trails.get("hiker_file", "")))
     data.ignitions = [(p["x"], p["y"], p["time_min"]) for p in summary.get("ignitions", [])]
     data.start_time = parse_datetime(summary["scenario"].get("start_datetime", ""))
+    season_info = summary.get("season") or {}
+    data.season = season_info.get("key")
+    data.snow_line_m = float(season_info.get("snow_line_m", 0.0))
 
     files = summary["files"]
     evacuation = load_evacuation(out_dir / files["evacuation"]) if "evacuation" in files else None

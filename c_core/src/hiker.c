@@ -10,6 +10,9 @@
  *   출처: Tobler, W. (1993). Three presentations on geographical analysis and modeling.
  *         NCGIA Technical Report 93-1.
  *
+ * [눈길 걷기] (9단계)
+ *   겨울에 눈 덮인 칸으로 들어갈 때는 속도 × snow_walk_factor (기본 0.75) [가정]
+ *
  * [밤에 걷기] (8단계)
  *   해가 지면 헤드랜턴에 의지해 걸으므로 속도가 줄어든다.
  *   속도 = Tobler 속도 × walk_speed_factor(시각)   (낮 1.0, 밤 0.6 [가정], 박명은 그 사이)
@@ -23,6 +26,7 @@
 
 #include "hiker.h"
 #include "daylight.h"
+#include "season.h"
 #include "evac_route.h"
 #include "util.h"
 #include "log.h"
@@ -48,7 +52,11 @@ double step_time_min(const Scenario *sc, GridPoint from, GridPoint to, double fl
     double horizontal_m = grid->cell_size_m * (is_diagonal ? sqrt(2.0) : 1.0);
     double rise_m = grid->cells[to.y][to.x].elevation - grid->cells[from.y][from.x].elevation;
     double speed_m_per_min = tobler_speed_kmh(flat_speed_kmh, rise_m / horizontal_m) * 1000.0 / 60.0;
-    return horizontal_m / (speed_m_per_min * walk_speed_factor(sc, t_min));
+    double factor = walk_speed_factor(sc, t_min);
+    if (cell_has_snow(sc, &grid->cells[to.y][to.x])) {
+        factor *= sc->season.snow_walk_factor;     /* (9단계) 눈길은 미끄러워 천천히 걷는다 */
+    }
+    return horizontal_m / (speed_m_per_min * factor);
 }
 
 /* ================================================================
