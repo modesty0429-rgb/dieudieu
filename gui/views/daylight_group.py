@@ -22,7 +22,8 @@ from services.scenario_writer import ScenarioOverrides
 class DaylightGroup(QGroupBox):
     def __init__(self, parent=None):
         super().__init__("낮/밤", parent)
-        self._date = "2026-04-05"          # 시나리오 파일의 시작 날짜 (시각만 바꿈)
+        self._date = "2026-04-05"          # 시작 날짜 (시각만 바꿈)
+        self._file_date = self._date       # 시나리오 파일의 원래 날짜 (계절 선택을 풀면 되돌림)
         self._start_locked = False         # 실제 기상 파일을 쓰면 그 시작 시각으로 고정
 
         self.enabled = QCheckBox("낮/밤 반영 (밤: 걷는 속도↓, 헬기 철수)")
@@ -52,11 +53,13 @@ class DaylightGroup(QGroupBox):
         start = ini.get("time", "start_datetime", fallback="2026-04-01 13:00").strip()
         date, _, clock = start.partition(" ")
         self._date = date
+        self._file_date = date
         self.start_time.setTime(QTime.fromString(clock or "13:00", "HH:mm"))
         self.enabled.setChecked(ini.getint("daylight", "enabled", fallback=1) == 1)
         self.night_walk.setValue(int(round(ini.getfloat("daylight", "night_walk_factor", fallback=0.6) * 100)))
         self.heli_day_only.setChecked(ini.getint("daylight", "heli_day_only", fallback=1) == 1)
         self.set_start_locked(None)
+        self._update_note()
 
     def set_start_locked(self, start: str | None) -> None:
         """실제 기상 파일을 쓰면 시작 시각을 그 예보 시각으로 고정한다. (None 이면 풀기)"""
@@ -64,6 +67,17 @@ class DaylightGroup(QGroupBox):
         if start is not None:
             self.start_time.setTime(QTime.fromString(start.partition(" ")[2], "HH:mm"))
         self._update_enabled()
+
+    def set_date(self, date: str | None) -> None:
+        """(9단계) 계절을 고르면 시작 날짜를 그 계절 대표 날짜로 바꾼다. None 이면 파일 날짜로 되돌림."""
+        self._date = date or self._file_date
+        self._update_note()
+
+    def date(self) -> str:
+        return self._date
+
+    def _update_note(self) -> None:
+        self.note.setText(f"시작 날짜 {self._date} · 저녁(17시 전후)에 시작하면 일몰 후 효과를 볼 수 있습니다.")
 
     def apply(self, o: ScenarioOverrides) -> None:
         """화면 값을 시나리오 변경 목록에 넣는다."""

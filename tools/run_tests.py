@@ -11,7 +11,9 @@
           경계 조건 (등산객 없음, 진화 자원 0, 불이 안 붙음, 젖은 연료)
           줄바꿈 형식 (LF / CRLF 입력 파일에서 같은 결과)
           낮/밤 (일몰 시각, 밤 헬기 출동 중지, 밤 보행 기록, 잘못된 설정값)
-  [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기
+          사계절 (여름이 봄보다 습하고 덜 탐, 겨울 눈 위로는 안 탐, 눈 위 발화·잘못된 계절은 오류)
+  [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기,
+           계절 지도 색
 
 결과는 항목마다 "통과 / 실패"로 출력되고, 하나라도 실패하면 종료 코드 1.
 (외부 테스트 도구 없이 표준 라이브러리 + numpy 만 사용)
@@ -203,6 +205,77 @@ def test_daylight(tmp: Path) -> None:
           f"종료 코드 {code}")
 
 
+def test_season(tmp: Path) -> None:
+    """
+    (9단계) 사계절 날씨: 계절 평년 날씨로 하루 기상을 만들고, 겨울엔 높은 곳이 눈에 덮인다.
+    같은 발화 지점·시드로 봄/여름/가을/겨울을 각각 돌려 비교한다.
+    """
+    import csv
+    import json
+
+    import numpy as np
+    print("\n[엔진] 사계절 날씨 (9단계)")
+    from services.result_loader import load_result
+
+    def run_season(key: str, extra: str = ""):
+        scenario = write_edge_scenario(
+            tmp, f"season_{key}",
+            f"[ignition]\npoint1 = 120, 80\n[weather]\nmode = season\n[season]\nseason = {key}\n{extra}")
+        out = tmp / f"season_{key}"
+        code, text = run_engine(scenario, "run", out)
+        return code, text, out
+
+    found = {}
+    for key in ("spring", "summer", "autumn", "winter"):
+        code, text, out = run_season(key)
+        if code != 0:
+            check(f"{key} 계절 실행", False, text[-300:])
+            continue
+        summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+        with open(out / "stats.csv", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+        found[key] = {
+            "season": summary.get("season", {}),
+            "area": summary["result"]["burned_area_ha"],
+            "rh": [float(r["rh_pct"]) for r in rows],
+            "temp": [float(r["temp_c"]) for r in rows],
+            "out": out,
+        }
+    if len(found) < 4:
+        return
+    sp, su, wi = found["spring"], found["summer"], found["winter"]
+    check("summary.json 에 계절 정보 기록 (season.key, 평년 기후)",
+          sp["season"].get("key") == "spring" and sp["season"].get("weather_from_season") is True)
+    check("여름이 봄보다 습함 (평균 습도)",
+          sum(su["rh"]) / len(su["rh"]) > sum(sp["rh"]) / len(sp["rh"]) + 10,
+          f"봄 {sum(sp['rh']) / len(sp['rh']):.1f}%, 여름 {sum(su['rh']) / len(su['rh']):.1f}%")
+    check("여름이 봄보다 덜 탐 (같은 발화 지점)", su["area"] < sp["area"],
+          f"봄 {sp['area']} ha, 여름 {su['area']} ha")
+    check("겨울은 영하 근처로 춥다 (최저 기온 < 2℃)", min(wi["temp"]) < 2.0, f"최저 {min(wi['temp'])}")
+    check("겨울엔 눈 셀이 있고 봄엔 없다",
+          wi["season"].get("snow_cells", 0) > 0 and sp["season"].get("snow_cells", 1) == 0)
+    try:
+        result = load_result(wi["out"] / "summary.json")
+        line = float(wi["season"]["snow_line_m"])
+        snowy = result.map.elevation >= line
+        burned_on_snow = int(((result.arrival >= 0) & snowy).sum())
+        check("눈 덮인 곳(해발 600 m 이상)으로는 불이 번지지 않음", burned_on_snow == 0,
+              f"눈 위에 탄 셀 {burned_on_snow}개")
+        check("결과 읽기: 지도에 계절·눈 경계 반영", result.map.season == "winter" and result.map.snow_line_m == line)
+        # 눈 위 발화 지점은 오류
+        y, x = (int(v) for v in np.argwhere(snowy)[0])
+        bad = write_edge_scenario(tmp, "season_snow_ignition",
+                                  f"[ignition]\npoint1 = {x}, {y}\n[season]\nseason = winter\n")
+        code, text = run_engine(bad, "run", tmp / "season_snow_ignition")
+        check("눈 덮인 곳에 발화 지점을 두면 오류", code == 1 and "눈" in text, f"종료 코드 {code}")
+    except (OSError, KeyError, ValueError, IndexError) as error:
+        check("겨울 결과 읽기", False, str(error))
+
+    bad = write_edge_scenario(tmp, "bad_season", "[ignition]\npoint1 = 120, 80\n[season]\nseason = monsoon\n")
+    code, text = run_engine(bad, "run", tmp / "bad_season")
+    check("잘못된 계절 이름은 오류 (season = monsoon)", code == 1 and "season" in text, f"종료 코드 {code}")
+
+
 # ----------------------------------------------------------------------
 # Python 시험
 # ----------------------------------------------------------------------
@@ -263,6 +336,31 @@ def test_python_helpers(tmp: Path) -> None:
     check("낮/밤 화면 계산 (밤 구간, 낮엔 투명·밤엔 어둡게)",
           spans == [(120.0, 800.0)] and day_tint[3] == 0 and night_tint[3] > 150)
 
+    import numpy as np
+    from services import map_render
+    from services.result_loader import season_from_ini
+    from services.scenario_writer import load_season_presets
+    from configparser import ConfigParser
+    elevation = np.array([[100.0, 300.0], [650.0, 900.0]])
+    fuel = np.array([[4, 4], [3, 8]])
+    summer = map_render.terrain_image(elevation, fuel, 30.0, season="summer")
+    autumn = map_render.terrain_image(elevation, fuel, 30.0, season="autumn")
+    winter = map_render.terrain_image(elevation, fuel, 30.0, season="winter", snow_line_m=600.0)
+    plain = map_render.terrain_image(elevation, fuel, 30.0)
+    check("계절 지도 색 (가을 활엽수는 붉은 쪽, 겨울 눈 위는 흰색, 물은 눈 없음)",
+          autumn[0, 0, 0] > summer[0, 0, 0] and winter[1, 0].min() > 150
+          and winter[1, 1, 2] > winter[1, 1, 0] and not np.array_equal(summer, plain))
+    parser = ConfigParser()
+    parser.read_string("[weather]\nmode = season\n[season]\nseason = auto\n")
+    from datetime import datetime
+    check("계절 해석 (auto + 1월 → 겨울, 눈 경계 600 m)",
+          season_from_ini(parser, datetime(2026, 1, 15, 13, 0)) == ("winter", 600.0))
+    presets = {p.key: p for p in load_season_presets()}
+    check("계절 프리셋 (장마 없음, 대표 날짜·겨울 눈)",
+          set(presets) == {"spring", "summer", "autumn", "winter"}
+          and all(p.date for p in presets.values()) and presets["winter"].snow_line_m > 0
+          and not any("장마" in p.note or "장마" in p.label for p in presets.values()))
+
 
 def main() -> int:
     exe = app_config.engine_path()
@@ -279,6 +377,7 @@ def main() -> int:
         test_edge_cases(tmp)
         test_line_endings(tmp)
         test_daylight(tmp)
+        test_season(tmp)
         test_python_helpers(tmp)
 
     failed = [name for name, ok, _ in results if not ok]

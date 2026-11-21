@@ -72,7 +72,8 @@ class StrategyMap(QWidget):
 
     def set_map(self, map_data: MapData) -> None:
         self.map = map_data
-        image = map_render.terrain_image(map_data.elevation, map_data.fuel, map_data.cell_size)
+        image = map_render.terrain_image(map_data.elevation, map_data.fuel, map_data.cell_size,
+                                         season=map_data.season, snow_line_m=map_data.snow_line_m)
         # 불이 잘 보이도록 바탕을 조금 어둡게
         self.terrain_item.setImage((image * 0.75).astype(np.uint8), levels=(0, 255))
         self.terrain_item.setRect(0, 0, map_data.width, map_data.height)

@@ -55,12 +55,14 @@
 | 몬테카를로 | N회 반복(비화·기상 오차) → 연소 확률 지도, 피해 면적 분포, "가장 이른 10%" 기준 보수적 대피 안내 |
 | 실제 기상 | 기상청 단기예보 API → 엔진 기상 파일 (인터넷이 없으면 샘플 파일) |
 | 낮/밤 | 날짜·위치로 해의 높이를 계산 → 일몰 후 등산객은 천천히 걷고(60%), 진화 헬기는 철수. 지도가 시각에 따라 어두워지고 밤에는 불빛이 번져 보임 |
+| 사계절 | 기상청 평년값으로 계절별 하루 날씨(봄 건조·강풍, 여름 습함, 가을 건조, 겨울 건조·추위)를 만들고, 겨울엔 해발 600 m 위가 눈에 덮여 불이 못 넘어감. 지도도 봄 진달래·여름 초록·가을 단풍·겨울 눈으로 바뀜 |
 | GUI | 지도 애니메이션, 대피 안내, 전략 나란히 비교, 통계 그래프, HTML 리포트 저장 |
 
 | | |
 |---|---|
 | ![진화 전략 비교](docs/images/gui_suppression.png) | ![통계](docs/images/gui_stats.png) |
 | ![해 질 녘 (19:05)](docs/images/gui_sunset.png) | ![밤 (21:00)](docs/images/gui_night.png) |
+| ![사계절 지도 (봄·여름·가을·겨울)](docs/images/gui_seasons.png) | ![겨울 (눈 덮인 능선)](docs/images/gui_winter.png) |
 
 ---
 
@@ -185,6 +187,7 @@ wildfire.exe <시나리오.ini> [--mode 모드] [--out 결과폴더] [--seed 시
 | `spring_danger_valley.ini` | 계곡 아래 발화 + 남서풍 11 m/s + 신고 140분 지연. 등산객 1팀이 고립되는 위험 사례 |
 | `calm_fixed_weather.ini` | 무풍 고정 기상. 경사 효과(오르막으로 더 번짐) 확인용 |
 | `evening_valley.ini` | 오후 5시 발화, 일몰 무렵 대피. 낮/밤 효과 확인용 (`[daylight] enabled = 0`으로 바꿔 비교) |
+| `season_presets.ini` | GUI "계절" 선택 값 (봄·여름·가을·겨울: 대표 날짜, 연료 수분, 눈 경계). 어떤 시나리오든 `[weather] mode = season` + `[season] season = winter`처럼 쓸 수도 있음 |
 | `tests/*.ini` | 일부러 틀린 시나리오 5개 (오류 메시지 확인용) |
 
 ### 4-2. 실행 예

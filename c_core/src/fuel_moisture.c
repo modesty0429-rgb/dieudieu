@@ -19,6 +19,7 @@
 #include <math.h>
 
 #include "fuel_moisture.h"
+#include "season.h"
 #include "util.h"
 #include "log.h"
 
@@ -151,11 +152,11 @@ const FuelModel *find_fuel_model(const Scenario *sc, int fuel_code)
     return &sc->fuels[sc->fuel_index[fuel_code]];
 }
 
-/* 셀의 연료가 탈 수 있는 종류이면 1 (상태는 따로 검사) */
+/* 셀의 연료가 탈 수 있는 종류이면 1 (상태는 따로 검사). 눈에 덮인 셀은 타지 않는다 (9단계) */
 int cell_fuel_is_burnable(const Scenario *sc, const Cell *cell)
 {
     const FuelModel *fm = find_fuel_model(sc, cell->fuel_code);
-    return fm != NULL && fm->burnable;
+    return fm != NULL && fm->burnable && !cell_has_snow(sc, cell);
 }
 
 /* 지도에 쓰인 연료 코드가 모두 연료 모델 표에 있는지 검사한다. 성공 1, 실패 0 */

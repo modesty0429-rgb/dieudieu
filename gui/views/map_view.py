@@ -23,7 +23,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 import theme
-from services import daylight_render, map_render
+from services import daylight_render, map_render, season_render
 from services.result_loader import MapData, SimulationResult
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)
@@ -31,6 +31,16 @@ pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)
 CONTOUR_STEP_M = 100        # 등고선 간격
 ISOCHRONE_STEP_MIN = 60     # 불 도착 등시선 간격
 
+
+
+def season_badge(season: str | None, snow_line_m: float) -> str:
+    """지도 위 계절 표시 문구 (예: '❄ 겨울 지도 · 해발 600 m 이상 눈')"""
+    if season not in season_render.SEASON_LABELS:
+        return ""
+    text = f"{season_render.SEASON_ICONS[season]} {season_render.SEASON_LABELS[season]} 지도"
+    if snow_line_m > 0:
+        text += f" · 해발 {snow_line_m:.0f} m 이상 눈"
+    return text
 
 class MapView(QWidget):
     cell_clicked = Signal(int, int)     # 지도를 클릭한 셀 (x, y)
@@ -117,6 +127,10 @@ class MapView(QWidget):
         self.check_hikers = self._add_check("등산객", True, self._update_hiker_visibility)
         self.check_routes = self._add_check("대피 경로", True, self._update_route_visibility)
         self.check_night = self._add_check("낮/밤", True, self._redraw_night)
+        self.check_season = self._add_check("계절 색", True, self._redraw_terrain)
+        self.season_label = QLabel("")          # (9단계) 지금 지도가 어느 계절인지
+        self.season_label.setObjectName("dim")
+        self.controls.addWidget(self.season_label)
         self.controls.addStretch(1)
         self.status_label = QLabel("")
         self.status_label.setObjectName("statusText")
@@ -167,6 +181,7 @@ class MapView(QWidget):
             self.set_map(result.map)
         else:
             self.map = result.map
+            self._redraw_terrain()          # 계절이 바뀌었을 수 있음
             self._draw_trails()
             self._draw_hikers()
             self.set_ignitions(result.map.ignitions)
@@ -176,6 +191,14 @@ class MapView(QWidget):
         self._draw_isochrones()
         self._draw_routes()
         self.set_time(0.0)
+
+    def set_season(self, season: str | None, snow_line_m: float) -> None:
+        """(9단계) 실행 전 미리보기에서 왼쪽 패널의 계절 선택을 지도 색에 반영한다."""
+        if self.map is None:
+            return
+        self.map.season = season
+        self.map.snow_line_m = snow_line_m
+        self._redraw_terrain()
 
     def set_time(self, t: float) -> None:
         """시각 t 의 불 모습을 그린다."""
@@ -203,9 +226,14 @@ class MapView(QWidget):
     def _redraw_terrain(self) -> None:
         if self.map is None:
             return
+        use_season = self.check_season.isChecked()
+        season = self.map.season if use_season else None
+        snow = self.map.snow_line_m if use_season else 0.0
         image = map_render.terrain_image(self.map.elevation, self.map.fuel, self.map.cell_size,
-                                         show_fuel=self.check_fuel.isChecked())
+                                         show_fuel=self.check_fuel.isChecked(),
+                                         season=season, snow_line_m=snow)
         self.terrain_item.setImage(image, levels=(0, 255))
+        self.season_label.setText(season_badge(self.map.season, self.map.snow_line_m))
         self.terrain_item.setRect(0, 0, self.map.width, self.map.height)
 
     def _draw_contours(self) -> None:

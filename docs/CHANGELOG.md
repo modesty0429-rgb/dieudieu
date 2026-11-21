@@ -409,3 +409,29 @@
 - 자동 테스트 31/31 통과, GUI offscreen으로 evening_valley 실행 → 낮·노을·밤 화면, 통계, 진화 전략 표 확인
 - **팀 PC에서 확인 필요**: MSVC `/W4` 빌드, Windows 화면의 이모지(☀🌅🌆🌙) 표시
 
+## 9단계 — 사계절 날씨 + 계절별 지도 디자인 (2026-11-21, 브랜치 `season-weather`)
+
+### 만든 것 (C)
+- **`season.c` / `season.h`** (새 파일): 계절별 평년 기후표(기상청 서울 1991~2020 기반), 계절 평년값으로 하루 기상(기온·습도·바람) 만들기,
+  월 → 계절, 계절 이름 해석(영어·한글·auto·none), 눈 경계·눈 셀 판정
+- **`scenario_io.c`**: `[weather] mode = season`, `[season]` 구역 (`season`, `snow_line_m`, `snow_walk_factor`), 눈 위 발화 지점 오류
+- **`weather.c`**: 계절 모드면 기상 파일 대신 `generate_season_weather`
+- **`fuel_moisture.c`**: 눈 덮인 셀은 타지 않음
+- **`hiker.c`**: 눈 덮인 셀로 걸으면 속도 × 0.75
+- **출력**: `summary.json`의 `season`(계절, 평년 기후, 눈 경계, 눈 셀 수), 콘솔 요약에 계절 기상·눈 경계
+
+### 만든 것 (Python)
+- **`services/season_render.py`** (새 파일): 계절별 숲 색(봄 연두+진달래, 여름 짙은 초록, 가을 단풍, 겨울 잎 진 숲+눈)
+- **지도·진화 전략 화면**: 계절 색으로 바탕 지도, "계절 색" 레이어 켜기/끄기, "❄ 겨울 지도 · 해발 600 m 이상 눈" 표시
+- **설정 패널**: 기상에 "계절 평년 날씨 (하루 변화)" 선택 추가. 계절을 고르면 계절 평년 날씨 + 대표 날짜(일출·일몰이 계절마다 다름) + 지도 색이 바로 바뀜
+- **계절 프리셋**: `season_presets.ini`에서 장마 설명 제거, 대표 날짜·눈 경계 추가
+- **결과 읽기**: `MapData.season`, `snow_line_m` (결과 파일·시나리오 파일 모두)
+- **자동 테스트**: 사계절 시험 12개 추가 (습도·면적 비교, 겨울 기온, 눈 셀, 눈 위로 안 번짐, 오류 2개, 지도 색, 계절 해석, 프리셋) → 총 43개
+
+### 검증
+- gcc `-Wall -Wextra -Wpedantic -Wconversion -Wshadow`, MinGW: 경고 0개
+- valgrind (겨울, `--mode evac`): 메모리 누수·오류 0
+- 기존 시나리오 3개(`spring_dry_base`, `spring_danger_valley`, `evening_valley`): main 과 결과 파일이 **바이트 단위로 같음** (계절 기본값 `none`)
+- 자동 테스트 43/43 통과, GUI offscreen으로 사계절 각각 실행해 지도 확인
+- **팀 PC에서 확인 필요**: MSVC `/W4` 빌드, Windows 화면의 이모지(🌸🌿🍁❄) 표시
+

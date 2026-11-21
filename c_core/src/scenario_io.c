@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include "scenario_io.h"
+#include "season.h"
 #include "map_io.h"
 #include "trail_io.h"
 #include "weather.h"
@@ -91,6 +92,11 @@ void scenario_set_defaults(Scenario *sc)
     sc->daylight.utc_offset_h = 9.0;
     sc->daylight.night_walk_factor = 0.6;
     sc->daylight.heli_day_only = 1;
+
+    /* 계절 (9단계): 기본은 계절 효과 없음 */
+    sc->season.season = SEASON_NONE;
+    sc->season.snow_line_m = -1.0;
+    sc->season.snow_walk_factor = 0.75;
 
     sc->weather_mode = WEATHER_FROM_FILE;
     sc->fixed_weather.time_min = 0.0;
@@ -270,8 +276,10 @@ static int apply_weather(Scenario *sc, const SettingContext *ctx, const char *va
             sc->weather_mode = WEATHER_FROM_FILE;
         } else if (str_equals_ignore_case(value, "fixed")) {
             sc->weather_mode = WEATHER_FIXED;
+        } else if (str_equals_ignore_case(value, "season")) {
+            sc->weather_mode = WEATHER_SEASON;
         } else {
-            log_error("%s %d번째 줄: weather mode 는 'file' 또는 'fixed' 여야 함 (읽은 값: '%s')",
+            log_error("%s %d번째 줄: weather mode 는 'file', 'fixed', 'season' 중 하나여야 함 (읽은 값: '%s')",
                       ctx->path, ctx->line_no, value);
             return 0;
         }
@@ -408,6 +416,27 @@ static int apply_montecarlo(Scenario *sc, const SettingContext *ctx, const char 
     return warn_unknown_key(ctx);
 }
 
+static int apply_season(Scenario *sc, const SettingContext *ctx, const char *value)
+{
+    SeasonSettings *s = &sc->season;
+
+    if (str_equals_ignore_case(ctx->key, "season")) {
+        if (!season_parse(value, &s->season)) {
+            log_error("%s %d번째 줄: season 은 spring, summer, autumn, winter, auto, none 중 하나여야 함 (읽은 값: '%s')",
+                      ctx->path, ctx->line_no, value);
+            return 0;
+        }
+        return 1;
+    }
+    if (str_equals_ignore_case(ctx->key, "snow_line_m")) {
+        return read_double_setting(ctx, value, -1.0, 9000.0, &s->snow_line_m);
+    }
+    if (str_equals_ignore_case(ctx->key, "snow_walk_factor")) {
+        return read_double_setting(ctx, value, 0.1, 1.0, &s->snow_walk_factor);
+    }
+    return warn_unknown_key(ctx);
+}
+
 static int apply_daylight(Scenario *sc, const SettingContext *ctx, const char *value)
 {
     DaylightSettings *d = &sc->daylight;
@@ -450,6 +479,7 @@ static int apply_setting(Scenario *sc, const SettingContext *ctx, char *value)
     if (str_equals_ignore_case(s, "suppression")) return apply_suppression(sc, ctx, value);
     if (str_equals_ignore_case(s, "montecarlo"))  return apply_montecarlo(sc, ctx, value);
     if (str_equals_ignore_case(s, "daylight"))    return apply_daylight(sc, ctx, value);
+    if (str_equals_ignore_case(s, "season"))      return apply_season(sc, ctx, value);
     return 1;   /* 모르는 구역은 구역 줄에서 이미 경고했으므로 여기서는 조용히 넘어간다 */
 }
 
@@ -458,7 +488,7 @@ static int is_known_section(const char *name)
 {
     static const char *known[] = {
         "general", "map", "trails", "time", "ignition", "weather",
-        "moisture", "spread", "evacuation", "suppression", "montecarlo", "daylight"
+        "moisture", "spread", "evacuation", "suppression", "montecarlo", "daylight", "season"
     };
     int i;
     for (i = 0; i < (int)(sizeof(known) / sizeof(known[0])); i++) {
@@ -639,7 +669,11 @@ static int validate_ignitions(const Scenario *sc)
             continue;
         }
         cell = &sc->grid.cells[p->y][p->x];
-        if (!cell_is_burnable_state(cell) || !cell_fuel_is_burnable(sc, cell)) {
+        if (cell_has_snow(sc, cell)) {
+            log_error("발화 지점 %d (%d, %d)는 눈 덮인 곳임 (고도 %.0f m ≥ 눈 경계 %.0f m) — 더 낮은 곳을 고르세요",
+                      i + 1, p->x, p->y, cell->elevation, season_snow_line(sc));
+            errors++;
+        } else if (!cell_is_burnable_state(cell) || !cell_fuel_is_burnable(sc, cell)) {
             log_error("발화 지점 %d (%d, %d)는 탈 수 없는 셀임 (연료 코드 %d)",
                       i + 1, p->x, p->y, cell->fuel_code);
             errors++;

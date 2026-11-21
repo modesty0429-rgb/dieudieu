@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout, 
                                QVBoxLayout, QWidget)
 
 from services import app_config
+from services.result_loader import parse_datetime, season_from_ini
 from services.scenario_writer import ScenarioOverrides, SeasonPreset, load_season_presets, read_ini
 from views.daylight_group import DaylightGroup
 from views.weather_dialog import WeatherDialog
@@ -70,6 +71,7 @@ class LabeledSlider(QWidget):
 
 class ScenarioPanel(QScrollArea):
     scenario_changed = Signal(object)          # Path: 기본 시나리오가 바뀜
+    season_preview_changed = Signal(object, float)   # (9단계) 계절 키(None 가능), 눈 경계 m
     ignition_changed = Signal(int, int)        # 발화 지점이 바뀜
     run_requested = Signal(object, object)     # (기본 시나리오 Path, ScenarioOverrides)
     stop_requested = Signal()
@@ -148,13 +150,18 @@ class ScenarioPanel(QScrollArea):
         layout = QVBoxLayout(group)
 
         self.weather_file_radio = QRadioButton("시나리오의 기상 파일 (시간별 변화)")
+        self.weather_season_radio = QRadioButton("계절 평년 날씨 (하루 동안 기온·습도·바람 변화)")
+        self.weather_season_radio.setToolTip("기상청 서울 평년값(1991~2020)으로 C 엔진이 하루 날씨를 만듭니다.\n"
+                                             "오후엔 덥고 건조하며 바람이 세고, 밤엔 서늘하고 습해집니다.")
         self.weather_fixed_radio = QRadioButton("직접 입력 (일정한 값)")
         self.weather_mode_group = QButtonGroup(self)
         self.weather_mode_group.addButton(self.weather_file_radio)
+        self.weather_mode_group.addButton(self.weather_season_radio)
         self.weather_mode_group.addButton(self.weather_fixed_radio)
         self.weather_file_radio.setChecked(True)
         self.weather_fixed_radio.toggled.connect(self._update_weather_enabled)
         layout.addWidget(self.weather_file_radio)
+        layout.addWidget(self.weather_season_radio)
         layout.addWidget(self.weather_fixed_radio)
 
         form = QFormLayout()
@@ -302,9 +309,9 @@ class ScenarioPanel(QScrollArea):
         self.duration.setValue(int(ini.getfloat("time", "duration_min", fallback=600)))
         self.seed.setValue(ini.getint("spread", "random_seed", fallback=42))
         self.spotting.setChecked(ini.getint("spread", "spotting_enabled", fallback=1) == 1)
-        fixed = ini.get("weather", "mode", fallback="file").strip().lower() == "fixed"
-        self.weather_fixed_radio.setChecked(fixed)
-        self.weather_file_radio.setChecked(not fixed)
+        mode = ini.get("weather", "mode", fallback="file").strip().lower()
+        {"fixed": self.weather_fixed_radio, "season": self.weather_season_radio}.get(
+            mode, self.weather_file_radio).setChecked(True)
         self.wind_speed.set_value(ini.getfloat("weather", "fixed_wind_speed_ms", fallback=6))
         self.wind_dir.set_value(ini.getfloat("weather", "fixed_wind_dir_deg", fallback=270))
         self.humidity.set_value(ini.getfloat("weather", "fixed_rh_pct", fallback=25))
@@ -330,7 +337,9 @@ class ScenarioPanel(QScrollArea):
         o.set("time", "duration_min", self.duration.value())
         o.set("spread", "random_seed", self.seed.value())
         o.set("spread", "spotting_enabled", 1 if self.spotting.isChecked() else 0)
-        if self.weather_fixed_radio.isChecked():
+        if self.weather_season_radio.isChecked():
+            o.set("weather", "mode", "season")
+        elif self.weather_fixed_radio.isChecked():
             o.set("weather", "mode", "fixed")
             o.set("weather", "fixed_wind_speed_ms", self.wind_speed.value())
             o.set("weather", "fixed_wind_dir_deg", self.wind_dir.value())
@@ -355,6 +364,8 @@ class ScenarioPanel(QScrollArea):
         if preset is not None:
             o.set("moisture", "live_moisture_factor", preset.live_moisture_factor)
             o.set("moisture", "initial_dead_moisture_pct", preset.initial_dead_moisture_pct)
+            o.set("season", "season", preset.key)                 # (9단계) 계절 날씨·눈·지도 색
+            o.set("season", "snow_line_m", float(preset.snow_line_m))
         return o
 
     # ------------------------------------------------------------------
@@ -370,18 +381,33 @@ class ScenarioPanel(QScrollArea):
         self.scenario_changed.emit(path)
 
     def _on_season_changed(self) -> None:
-        """계절을 고르면 기상 슬라이더를 그 계절의 전형적인 값으로 바꾸고 '직접 입력'으로 전환"""
+        """
+        계절을 고르면
+          - 기상을 '계절 평년 날씨'로 바꾸고 (직접 입력 슬라이더도 그 계절의 오후 대표값으로)
+          - 시작 날짜를 계절 대표 날짜로 (해 뜨고 지는 시각이 계절마다 다름)
+          - 지도 색을 계절 색으로 (미리보기)
+        """
         preset = self._current_preset()
         if preset is None:
             self.season_note.setText("")
+            self.daylight_group.set_date(None)
+            ini = read_ini(self.current_scenario())
+            start = parse_datetime(ini.get("time", "start_datetime", fallback=""))
+            season, snow = season_from_ini(ini, start)
+            self.season_preview_changed.emit(season, snow)
             return
+        snow = f", 해발 {preset.snow_line_m:g} m 이상 눈" if preset.snow_line_m > 0 else ""
         self.season_note.setText(f"{preset.note}  (수분 배율 {preset.live_moisture_factor:g}, "
-                                 f"초기 연료 수분 {preset.initial_dead_moisture_pct:g}%)")
+                                 f"초기 연료 수분 {preset.initial_dead_moisture_pct:g}%{snow}, {preset.date})")
         self.wind_speed.set_value(preset.wind_speed_ms)
         self.wind_dir.set_value(preset.wind_dir_deg)
         self.humidity.set_value(preset.rh_pct)
         self.temperature.set_value(preset.temp_c)
-        self.weather_fixed_radio.setChecked(True)
+        if self.weather_override is None:
+            self.weather_season_radio.setChecked(True)
+        if preset.date:
+            self.daylight_group.set_date(preset.date)
+        self.season_preview_changed.emit(preset.key, float(preset.snow_line_m))
 
     def _open_weather_dialog(self) -> None:
         dialog = WeatherDialog(self)

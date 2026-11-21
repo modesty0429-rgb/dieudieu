@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 
 import theme
+from services import season_render
 
 STATE_UNBURNED = 0
 STATE_BURNING = 1
@@ -46,18 +47,22 @@ def fuel_color_table() -> np.ndarray:
 
 
 def terrain_image(elevation: np.ndarray, fuel: np.ndarray, cell_size: float,
-                  show_fuel: bool = True) -> np.ndarray:
+                  show_fuel: bool = True, season: str | None = None,
+                  snow_line_m: float = 0.0) -> np.ndarray:
     """
     바탕 지도 RGB (uint8, [y, x, 3]).
     연료 색에 음영을 곱해 입체감을 준다. show_fuel 이 False 면 회색 음영만.
+    (9단계) season 을 주면 숲 색을 계절 색으로 바꾸고, snow_line_m 보다 높은 곳은 눈으로 덮는다.
     """
     shade = hillshade(elevation, cell_size)
     brightness = 0.35 + 0.65 * shade                     # 너무 어둡지 않게
     if show_fuel:
         colors = fuel_color_table()[np.clip(fuel, 0, 31)]
+        colors = season_render.season_colors(colors, fuel, season)
     else:
         colors = np.full(elevation.shape + (3,), 175.0)
     rgb = colors * brightness[..., None]
+    rgb = season_render.apply_snow(rgb, shade, season_render.snow_mask(elevation, fuel, snow_line_m))
     return np.clip(rgb, 0, 255).astype(np.uint8)
 
 

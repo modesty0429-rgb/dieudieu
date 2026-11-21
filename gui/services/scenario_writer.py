@@ -39,6 +39,8 @@ class SeasonPreset:
     wind_speed_ms: float
     wind_dir_deg: float
     note: str = ""
+    date: str = ""            # 계절 대표 날짜 YYYY-MM-DD (일출·일몰, 평년 기후 선택)
+    snow_line_m: float = 0.0  # 눈 경계 고도 (0 이면 눈 없음)
 
 
 def load_season_presets(path: Path = app_config.SEASON_PRESET_FILE) -> list[SeasonPreset]:
@@ -59,6 +61,8 @@ def load_season_presets(path: Path = app_config.SEASON_PRESET_FILE) -> list[Seas
             wind_speed_ms=s.getfloat("wind_speed_ms", 5.0),
             wind_dir_deg=s.getfloat("wind_dir_deg", 270.0),
             note=s.get("note", ""),
+            date=s.get("date", ""),
+            snow_line_m=s.getfloat("snow_line_m", 0.0),
         ))
     return presets
 
