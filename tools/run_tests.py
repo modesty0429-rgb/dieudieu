@@ -140,7 +140,7 @@ def test_line_endings(tmp: Path) -> None:
     results_by_style = {}
     for style, newline in (("lf", "\n"), ("crlf", "\r\n")):
         data = tmp / f"data_{style}"
-        shutil.copytree(app_config.DATA_DIR, data, ignore=shutil.ignore_patterns("gui_custom.ini"))
+        shutil.copytree(app_config.DATA_DIR, data, ignore=shutil.ignore_patterns("gui_custom.ini", "raw", "_cache"))
         for path in data.rglob("*"):
             if path.suffix in (".asc", ".ini", ".csv", ".txt"):
                 text = path.read_text(encoding="utf-8").replace("\r\n", "\n")

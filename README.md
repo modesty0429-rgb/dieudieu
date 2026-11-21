@@ -288,14 +288,18 @@ python gui/services/trail_generator.py
 |---|---|---|
 | 지형 `elev.asc` | **실제 지형** (6개 산 모두 포함) | AWS Terrain Tiles (한국은 SRTM 30 m 기반). 정상 고도 오차 약 1% |
 | 연료 `fuel.asc` | **[임시]** 사면 방향 규칙 (가상 산과 같은 규칙) | 산림청 임상도를 반영하면 실제 숲 종류로 바뀜 |
-| 등산로 `trails.txt` | **없음** → 대피 안내 계산 안 함 | 산림청 등산로를 반영하면 생김 (등산객 5팀 자동 배치) |
+| 등산로 `trails.txt` | **설악산 반영 완료** (69.5 km). 나머지 산은 없음 → 대피 안내 계산 안 함 | 산림청 등산로를 반영하면 생김 (등산객 5팀 자동 배치) |
 
 GUI 시나리오 칸 아래에 산마다 반영 상태가 표시됩니다.
 
 **① 산림청 자료 받기** (용량이 커서 저장소에 넣지 않습니다. `data/raw/` 에 두면 git이 무시합니다)
 - 등산로: 산림청 "산림공간정보서비스" 또는 공공데이터포털에서 **"등산로"** 검색 → 산별 SHP (선 레이어 + 지점(spot) 레이어)
 - 임상도: 산림공간정보서비스 → **임상도(1:5,000 또는 1:25,000)** SHP (시·도 단위)
-- SHP는 `.shp .shx .dbf .prj` 네 파일이 같은 폴더에 있어야 합니다.
+- SHP는 `.shp .shx .dbf .prj` 네 파일이 같은 폴더에 있어야 합니다. 받은 그대로 산마다 폴더를 따로 두세요 (`data/raw/설악산/` 등).
+- `PMNTN_<산>_<코드>.shp` = 등산로 선, `PMNTN_SPOT_<산>_<코드>.shp` = 지점(시종점·분기점·정상 등)
+- **주의: 이름이 같은 산이 여러 곳 있습니다.** (예: 경남 통영 사량도의 "지리산", 전북 임실의 "팔공산") 산 코드 앞 5자리가 시·군·구 코드이니 확인하세요.
+  변환 도구가 자료 위치와 정상까지 거리를 알려 줍니다.
+- 큰 산(북한산·지리산 등)은 시·군·구별로 파일이 나뉘어 있어, `--lines`·`--spots` 에 여러 파일을 함께 넣습니다.
 
 **② 변환** (저장소 폴더에서, `python -m pip install pyshp pyproj pillow` 먼저)
 
@@ -304,7 +308,7 @@ python gui/services/forest_import.py fields data/raw/북한산_등산로.shp
 ```
 
 ```bash
-python gui/services/forest_import.py trails --id bukhansan --lines data/raw/북한산_등산로.shp --spots data/raw/북한산_지점.shp
+python gui/services/forest_import.py trails --id seoraksan --lines data/raw/설악산/PMNTN_설악산_대청봉_428302602.shp --spots data/raw/설악산/PMNTN_SPOT_설악산_대청봉_428302602.shp
 ```
 
 ```bash

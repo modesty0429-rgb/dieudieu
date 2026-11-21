@@ -16,7 +16,9 @@
 
 실행 예 (저장소 폴더에서):
     python gui/services/forest_import.py fields  data/raw/등산로_북한산.shp
-    python gui/services/forest_import.py trails  --id bukhansan --lines data/raw/북한산_등산로.shp --spots data/raw/북한산_지점.shp
+    python gui/services/forest_import.py trails  --id seoraksan --lines data/raw/설악산/PMNTN_설악산_대청봉_428302602.shp
+                                                 --spots data/raw/설악산/PMNTN_SPOT_설악산_대청봉_428302602.shp
+    (큰 산은 시·군·구별 파일 여러 개를 --lines a.shp b.shp --spots c.shp d.shp 처럼 함께 넣는다)
     python gui/services/forest_import.py forest  --id bukhansan --shp data/raw/임상도_서울.shp
 
 필요한 라이브러리 (변환할 때만): pyshp, pyproj, pillow  →  python -m pip install pyshp pyproj pillow
@@ -45,15 +47,21 @@ MAX_WAYPOINTS = 64           # C 엔진 WF_MAX_WAYPOINTS 와 같음
 NAME_MAX_CHARS = 18          # C 엔진 이름 칸이 64바이트 (한글 3바이트) 이므로 넉넉히 자름
 SPOT_SNAP_CELLS = 5          # 지점이 등산로에서 이만큼(150 m) 안에 있어야 노드로 붙인다 [가정]
 
-# 지점 이름·종류 글자 → 노드 종류 (앞에 있는 것이 우선)
-SPOT_KEYWORDS = [
-    ("SHELTER", ("대피소", "산장", "대피")),
-    ("PARKING", ("주차장", "매표소", "탐방지원센터", "탐방안내소", "시종점", "들머리", "입구", "버스")),
-    ("SUMMIT", ("정상", "봉우리", "봉", "대")),
-    ("JUNCTION", ("갈림길", "삼거리", "사거리", "분기")),
+# 지점 종류(산림청 MANAGE_SP2) → 노드 종류. 표에 없는 지점(가로등·벤치·계단·안내판 등)은 쓰지 않는다.
+#   AUTO: 노드로 두되 종류는 그래프 모양으로 정함 (시종점이 막다른 끝이면 들머리=주차장, 아니면 갈림길)
+#   [근거: 산림청 등산로 자료 설명 — 시종점 = 등산로 구간의 시작·끝, 분기점 = 갈림길]
+SPOT_KIND_TYPES = [
+    ("SHELTER", ("대피소", "산장")),
+    ("PARKING", ("주차장", "탐방지원센터", "탐방안내소", "매표소")),
+    ("SUMMIT", ("정상", "봉우리")),
+    ("JUNCTION", ("분기점", "갈림길", "삼거리", "사거리")),
+    ("AUTO", ("시종점", "들머리", "등산로시점")),
 ]
-# 위 표에서 "봉", "대" 처럼 한 글자는 이름 끝에 올 때만 정상으로 본다 (예: 백운대, 비로봉 / 봉수대·대피소 제외)
-SUFFIX_ONLY = {"봉", "대"}
+# 종류가 표에 없어도 이름에 이 글자가 있으면 사용 (예: 기타 / "지리산정상,정상부표지석")
+SPOT_NAME_TYPES = [("SHELTER", ("대피소", "산장")), ("PARKING", ("주차장", "탐방지원센터")), ("SUMMIT", ("정상",))]
+# 지점 상세 설명에서 이름으로 쓰지 않을 글자 (예: "시종점,등산안내플랜카드,내지마을" → "내지마을")
+GENERIC_NAME_WORDS = ("시종점", "분기점", "기타", "방향", "갈래", "표지", "계단", "난간", "전경", "플랜카드",
+                      "안내도", "등산로시점", "로프", "훼손")
 
 # 필드 자동 찾기 후보 (산림청 자료에서 쓰이는 이름 + 일반적인 이름)
 NAME_FIELD_HINTS = ("DETAIL_SPO", "DETAIL_SP", "SPOT_NM", "POI_NM", "NAME", "NM", "명칭", "이름")
@@ -231,16 +239,23 @@ def read_spots(path: Path, center, crs: str | None, encoding: str | None,
 
 
 def spot_node_type(spot: Spot) -> str | None:
-    """지점의 종류·이름 글자로 노드 종류를 정한다. 알 수 없으면 None"""
-    for text in (spot.kind, spot.name):
-        for node_type, words in SPOT_KEYWORDS:
-            for word in words:
-                if word in SUFFIX_ONLY:
-                    if text.endswith(word) and len(text) >= 2:
-                        return node_type
-                elif word in text:
-                    return node_type
+    """지점 종류 글자(없으면 이름)로 노드 종류를 정한다. 쓰지 않는 지점이면 None"""
+    for node_type, words in SPOT_KIND_TYPES:
+        if any(word in spot.kind for word in words):
+            return node_type
+    for node_type, words in SPOT_NAME_TYPES:
+        if any(word in spot.name for word in words):
+            return node_type
     return None
+
+
+def spot_display_name(spot: Spot) -> str:
+    """지점 상세 설명에서 고유한 이름만 뽑는다. "지리산정상,정상부표지석" → "지리산정상", "시종점" → "" """
+    for token in spot.name.replace("/", ",").split(","):
+        token = "".join(token.split())
+        if token and token != spot.kind and not any(w in token for w in GENERIC_NAME_WORDS):
+            return token
+    return ""
 
 
 # ----------------------------------------------------------------------
@@ -299,6 +314,9 @@ def cluster_cells(cells: list[tuple[int, int]]) -> dict[tuple[int, int], int]:
     return label
 
 
+SPOT_PRIORITY = ["SHELTER", "SUMMIT", "PARKING", "AUTO", "JUNCTION"]    # 같은 칸에 여러 지점이면 앞쪽 우선
+
+
 def snap_spots(lines: list[TrailLine], spots: list[Spot]) -> dict[tuple[int, int], Spot]:
     """각 지점을 가장 가까운 등산로 칸에 붙인다 (SPOT_SNAP_CELLS 안쪽만)"""
     trail_cells = np.array(sorted({c for line in lines for c in line.cells}))
@@ -306,13 +324,14 @@ def snap_spots(lines: list[TrailLine], spots: list[Spot]) -> dict[tuple[int, int
     if len(trail_cells) == 0:
         return snapped
     for spot in spots:
-        if spot_node_type(spot) is None and not spot.name:
+        if spot_node_type(spot) is None:
             continue
         d2 = (trail_cells[:, 0] - spot.x) ** 2 + (trail_cells[:, 1] - spot.y) ** 2
         k = int(np.argmin(d2))
         if d2[k] <= SPOT_SNAP_CELLS ** 2:
             cell = (int(trail_cells[k, 0]), int(trail_cells[k, 1]))
-            if cell not in snapped or (spot_node_type(snapped[cell]) is None and spot_node_type(spot)):
+            if cell not in snapped or SPOT_PRIORITY.index(spot_node_type(spot)) < \
+                    SPOT_PRIORITY.index(spot_node_type(snapped[cell])):
                 snapped[cell] = spot
     return snapped
 
@@ -334,8 +353,12 @@ def build_graph(lines: list[TrailLine], snapped: dict[tuple[int, int], Spot]) ->
         if cell in snapped and not node.spot:
             spot = snapped[cell]
             node.x, node.y, node.spot = cell[0], cell[1], True
-            node.name = spot.name or spot.kind
+            node.name = spot_display_name(spot)
             node.type = spot_node_type(spot) or "POINT"
+        elif cell in snapped and SPOT_PRIORITY.index(spot_node_type(snapped[cell])) < SPOT_PRIORITY.index(node.type):
+            spot = snapped[cell]                       # 같은 묶음에 더 중요한 지점이 있으면 그것으로
+            node.x, node.y = cell
+            node.name, node.type = spot_display_name(spot), spot_node_type(spot)
 
     best: dict[tuple[int, int], Edge] = {}
     for line in lines:
@@ -430,7 +453,7 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
     """
     이름·종류가 없는 노드를 규칙으로 채운다.
       지도 경계에서 잘린 끝     → PARKING "지도경계(방향)"  [가정: 9 km 지도 밖은 안전 지역]
-      막다른 끝 중 낮은 곳      → PARKING "들머리"          [가정: 등산로 끝의 낮은 곳은 보통 들머리]
+      막다른 끝 중 '시종점' 지점이거나 낮은 곳 → PARKING "들머리"  [가정: 등산로 끝의 낮은 곳은 보통 들머리]
       막다른 끝 중 높은 곳      → POINT
       정상 근처(300 m)          → SUMMIT 정상 이름 (지점 자료에 정상이 없을 때)
       나머지                    → JUNCTION "갈림길"
@@ -447,17 +470,21 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
         counters[base] += 1
         return f"{base}{counters[base]}"
 
+    generic = {"SHELTER": "대피소", "PARKING": "주차장", "SUMMIT": "봉우리", "JUNCTION": "갈림길"}
     for i, node in enumerate(nodes):
-        if node.spot:
+        if node.spot and node.type != "AUTO":
+            node.name = node.name or numbered(generic.get(node.type, "지점"))
             continue
+        trailhead = node.spot                          # 산림청 '시종점' 지점
         if node.cut:
-            node.type, node.name = "PARKING", numbered(f"지도경계{boundary_side(node)}")
-        elif degree[i] == 1 and node_elev[i] <= low_line:
-            node.type, node.name = "PARKING", numbered("들머리")
+            node.type, base = "PARKING", f"지도경계{boundary_side(node)}"
+        elif degree[i] == 1 and (trailhead or node_elev[i] <= low_line):
+            node.type, base = "PARKING", "들머리"
         elif degree[i] == 1:
-            node.type, node.name = "POINT", numbered("끝지점")
+            node.type, base = "POINT", "끝지점"
         else:
-            node.type, node.name = "JUNCTION", numbered("갈림길")
+            node.type, base = "JUNCTION", "갈림길"
+        node.name = node.name if node.spot and node.name else numbered(base)
 
     if nodes and not any(n.type == "SUMMIT" for n in nodes):
         c = (mb.GRID_SIZE - 1) / 2
@@ -515,32 +542,70 @@ def write_hikers_file(path: Path, nodes: list[Node], elevation: np.ndarray) -> i
     return len(chosen)
 
 
-def import_trails(mountain_id: str, lines_path: Path, spots_path: Path | None = None, crs: str | None = None,
+def data_location_hint(path: Path, mountain: dict, crs: str | None, encoding: str | None) -> str:
+    """자료가 실제로 있는 위치와 정상까지 거리 (이름만 같은 다른 지역 산 자료인지 알려 주기 위함)"""
+    import math
+
+    reader = open_shapefile(path, encoding)
+    transformer, _ = make_transformer(path, crs)
+    x0, y0, x1, y1 = reader.bbox
+    lon, lat = transformer.transform((x0 + x1) / 2, (y0 + y1) / 2)
+    lat0, lon0 = mountain["center"]
+    north = math.radians(lat - lat0) * mb.EARTH_RADIUS_M / 1000
+    east = math.radians(lon - lon0) * mb.EARTH_RADIUS_M * math.cos(math.radians(lat0)) / 1000
+    distance = math.hypot(north, east)
+    hint = (f"  자료 위치: 위도 {lat:.4f}, 경도 {lon:.4f} → {mountain['name']} {mountain['peak']}에서 {distance:.1f} km "
+            f"({'북' if north > 0 else '남'}쪽 {abs(north):.1f} km, {'동' if east > 0 else '서'}쪽 {abs(east):.1f} km)")
+    if distance > 30:
+        hint += "\n  이름만 같은 다른 지역의 산 자료일 가능성이 큼. 파일 이름의 산 코드 앞 5자리는 시·군·구 코드"
+    else:
+        hint += "\n  같은 산의 다른 구역 자료일 수 있음 (큰 산은 시·군·구별로 나뉘어 있음)"
+    return hint
+
+
+def as_path_list(value) -> list[Path]:
+    """파일 하나 또는 여러 개 → 목록"""
+    if value is None:
+        return []
+    return [Path(v) for v in value] if isinstance(value, (list, tuple)) else [Path(value)]
+
+
+def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None = None,
                   encoding: str | None = None, name_field: str | None = None,
                   type_field: str | None = None) -> dict:
-    """산림청 등산로 SHP → trails.txt, hikers.txt. 반영 결과 요약을 돌려준다."""
+    """
+    산림청 등산로 SHP → trails.txt, hikers.txt. 반영 결과 요약을 돌려준다.
+    lines_path, spots_path 는 파일 하나 또는 여러 개 (큰 산은 시·군·구별로 파일이 나뉘어 있으므로 함께 넣는다)
+    """
+    line_files, spot_files = as_path_list(lines_path), as_path_list(spots_path)
     mountain = mb.find_mountain(mountain_id)
     folder = mb.mountain_folder(mountain_id)
     center = tuple(mountain["center"])
     elevation = read_asc(folder / "elev.asc")[1]
 
-    lines = read_trail_lines(lines_path, center, crs, encoding)
+    lines: list[TrailLine] = []
+    for path in line_files:
+        found = read_trail_lines(path, center, crs, encoding)
+        if not found:
+            print(f"[경고] {path.name}: 이 산의 9 km 지도 안에 들어오는 등산로가 없어 건너뜀\n"
+                  + data_location_hint(path, mountain, crs, encoding), file=sys.stderr)
+        lines.extend(found)
     if not lines:
-        raise ValueError(f"{lines_path.name}: 이 산의 9 km 지도 안에 들어오는 등산로가 없음 (산 id 와 파일을 확인)")
-    spots = read_spots(spots_path, center, crs, encoding, name_field, type_field) if spots_path else []
+        raise ValueError("넣은 파일 모두 이 산의 9 km 지도 안에 들어오는 등산로가 없음 (위 경고의 자료 위치 참고)")
+    spots = [s for path in spot_files for s in read_spots(path, center, crs, encoding, name_field, type_field)]
     snapped = snap_spots(lines, spots)
     nodes, edges = build_graph(lines, snapped)
     finish_nodes(nodes, edges, elevation, mountain)
     if not any(n.type in ("PARKING", "SHELTER") for n in nodes):
         raise ValueError("대피 목적지(주차장·대피소·지도 경계)를 하나도 찾지 못함")
 
-    source = f"산림청 등산로 {lines_path.name}" + (f" + {spots_path.name}" if spots_path else "")
+    source = "산림청 등산로 " + ", ".join(p.name for p in line_files + spot_files)
     write_trails_file(folder / "trails.txt", nodes, edges, source)
     hikers = write_hikers_file(folder / "hikers.txt", nodes, elevation)
     length_km = sum(len(e.cells) for e in edges) * mb.CELL_SIZE_M / 1000.0
 
     info = mb.read_info(mountain_id)
-    info["trail_source"] = {"files": [p.name for p in (lines_path, spots_path) if p], "imported": str(date.today()),
+    info["trail_source"] = {"files": [p.name for p in line_files + spot_files], "imported": str(date.today()),
                             "nodes": len(nodes), "edges": len(edges), "length_km": round(length_km, 1),
                             "spots_used": sum(1 for n in nodes if n.spot), "hikers": hikers}
     mb.write_info(mountain_id, info)
@@ -661,8 +726,8 @@ def main() -> None:
 
     p_trails = sub.add_parser("trails", help="등산로 → trails.txt, hikers.txt")
     p_trails.add_argument("--id", required=True, help="산 id (mountains.json)")
-    p_trails.add_argument("--lines", required=True, type=Path, help="등산로 선 SHP")
-    p_trails.add_argument("--spots", type=Path, help="등산로 지점 SHP (대피소·정상·주차장 등 이름)")
+    p_trails.add_argument("--lines", required=True, type=Path, nargs="+", help="등산로 선 SHP (여러 개 가능)")
+    p_trails.add_argument("--spots", type=Path, nargs="+", help="등산로 지점 SHP (여러 개 가능)")
     p_trails.add_argument("--name-field", help="지점 이름 필드 (자동 찾기 대신)")
     p_trails.add_argument("--type-field", help="지점 종류 필드 (자동 찾기 대신)")
 
