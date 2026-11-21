@@ -197,6 +197,8 @@ class EvacuationView(QWidget):
             lines.append(f"출발 {hiker.depart_time:.0f}분 → "
                          + (f"도착 {hiker.finish_time:.0f}분" if hiker.status == "SAFE"
                             else f"<span style='color:{theme.ERROR}'>{hiker.finish_time:.0f}분에 고립</span>"))
+            if hiker.dark_walk_min > 0.5:
+                lines.append(f"🌙 어두운 산길을 {hiker.dark_walk_min:.0f}분 걸음 (밤에는 헤드랜턴에 의지해 천천히 걸음)")
             if hiker.min_margin is not None and hiker.min_margin < 0:
                 # 출발이 "신고 시각"에 묶였는지, "대피 준비 경보 시각"이었는지에 따라 원인이 다르다
                 notify = self.evacuation.settings["notify_delay_min"]

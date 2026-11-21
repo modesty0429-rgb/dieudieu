@@ -172,7 +172,7 @@ static void walk_edge(const Scenario *sc, const DangerMap *danger, int edge_inde
 
         if (i > 0) {
             GridPoint prev = forward ? edge->path[i - 1] : edge->path[edge->path_count - i];
-            t += step_time_min(&sc->grid, prev, cur, speed_kmh);
+            t += step_time_min(sc, prev, cur, speed_kmh, t);
         }
         cell_margin = danger_time_at(danger, cur.x, cur.y) - t;
         if (cell_margin < margin) {

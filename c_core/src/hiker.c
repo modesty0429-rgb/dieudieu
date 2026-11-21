@@ -10,6 +10,10 @@
  *   출처: Tobler, W. (1993). Three presentations on geographical analysis and modeling.
  *         NCGIA Technical Report 93-1.
  *
+ * [밤에 걷기] (8단계)
+ *   해가 지면 헤드랜턴에 의지해 걸으므로 속도가 줄어든다.
+ *   속도 = Tobler 속도 × walk_speed_factor(시각)   (낮 1.0, 밤 0.6 [가정], 박명은 그 사이)
+ *
  * [이동 기록]
  *   대피 경로의 셀을 하나씩 지나며 "몇 분에 어느 셀에 있는지"(TrackPoint)를 기록한다.
  *   걷다가 이미 불이 도착한 셀을 만나면 그 앞에서 멈추고 "고립"이 된다.
@@ -18,6 +22,7 @@
 #include <math.h>
 
 #include "hiker.h"
+#include "daylight.h"
 #include "evac_route.h"
 #include "util.h"
 #include "log.h"
@@ -32,14 +37,18 @@ double tobler_speed_kmh(double flat_speed_kmh, double slope)
     return (speed < MIN_WALK_SPEED_KMH) ? MIN_WALK_SPEED_KMH : speed;
 }
 
-/* 이웃한 두 셀 사이를 걷는 데 걸리는 시간 (분) */
-double step_time_min(const Grid *grid, GridPoint from, GridPoint to, double flat_speed_kmh)
+/*
+ * 이웃한 두 셀 사이를 시각 t_min 에 출발해 걷는 데 걸리는 시간 (분).
+ * 경사(Tobler)와 밝기(낮/밤)를 함께 반영한다.
+ */
+double step_time_min(const Scenario *sc, GridPoint from, GridPoint to, double flat_speed_kmh, double t_min)
 {
+    const Grid *grid = &sc->grid;
     int    is_diagonal = (from.x != to.x) && (from.y != to.y);
     double horizontal_m = grid->cell_size_m * (is_diagonal ? sqrt(2.0) : 1.0);
     double rise_m = grid->cells[to.y][to.x].elevation - grid->cells[from.y][from.x].elevation;
     double speed_m_per_min = tobler_speed_kmh(flat_speed_kmh, rise_m / horizontal_m) * 1000.0 / 60.0;
-    return horizontal_m / speed_m_per_min;
+    return horizontal_m / (speed_m_per_min * walk_speed_factor(sc, t_min));
 }
 
 /* ================================================================
@@ -84,6 +93,7 @@ int build_hiker_track(const Scenario *sc, Hiker *hiker)
     int               last_x = start->x, last_y = start->y;
     int               k, i;
 
+    hiker->dark_walk_min = 0.0;
     if (!push_track_point(hiker, &capacity, 0.0, start->x, start->y)) {
         return 0;
     }
@@ -110,7 +120,7 @@ int build_hiker_track(const Scenario *sc, Hiker *hiker)
             GridPoint prev = forward ? edge->path[i - 1] : edge->path[edge->path_count - i];
             GridPoint cur = forward ? edge->path[i] : edge->path[edge->path_count - 1 - i];
             double    arrival = sc->grid.cells[cur.y][cur.x].arrival_time;
-            double    next_t = t + step_time_min(&sc->grid, prev, cur, hiker->speed_kmh);
+            double    next_t = t + step_time_min(sc, prev, cur, hiker->speed_kmh, t);
 
             if (time_is_set(arrival) && arrival <= next_t) {
                 /* 다음 셀에 불이 먼저 와 있음 → 지금 셀에서 고립 */
@@ -119,6 +129,9 @@ int build_hiker_track(const Scenario *sc, Hiker *hiker)
                 hiker->pos_x = last_x;
                 hiker->pos_y = last_y;
                 return 1;
+            }
+            if (walk_speed_factor(sc, t) < 1.0) {
+                hiker->dark_walk_min += next_t - t;   /* 어두울 때 걸은 시간 */
             }
             t = next_t;
             last_x = cur.x;
@@ -176,6 +189,7 @@ void reset_hiker(Hiker *hiker)
     hiker->finish_time_min = WF_NO_TIME;
     hiker->status = HIKER_HIKING;
     hiker->alert = ALERT_NONE;
+    hiker->dark_walk_min = 0.0;
 }
 
 /* 등산객 한 명이 가진 동적 메모리(경로, 이동 기록, 상태 기록)를 해제한다. */

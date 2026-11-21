@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout, 
 
 from services import app_config
 from services.scenario_writer import ScenarioOverrides, SeasonPreset, load_season_presets, read_ini
+from views.daylight_group import DaylightGroup
 from views.weather_dialog import WeatherDialog
 
 WIND_NAMES = ["북풍", "북동풍", "동풍", "남동풍", "남풍", "남서풍", "서풍", "북서풍"]
@@ -86,6 +87,8 @@ class ScenarioPanel(QScrollArea):
         layout.addWidget(self._build_ignition_group())
         layout.addWidget(self._build_weather_group())
         layout.addWidget(self._build_simulation_group())
+        self.daylight_group = DaylightGroup()          # (8단계) 낮/밤
+        layout.addWidget(self.daylight_group)
         layout.addWidget(self._build_suppression_group())
         layout.addWidget(self._build_montecarlo_group())
         layout.addWidget(self._build_run_buttons())
@@ -311,6 +314,7 @@ class ScenarioPanel(QScrollArea):
         self.helicopters.setValue(ini.getint("suppression", "helicopters", fallback=2))
         self.heli_interval.setValue(int(ini.getfloat("suppression", "heli_interval_min", fallback=30)))
         self.mc_runs.setValue(ini.getint("montecarlo", "runs", fallback=100))
+        self.daylight_group.load(ini)
         self.set_weather_override(None)
         for key, value in ini.items("ignition") if ini.has_section("ignition") else []:
             if key.startswith("point"):
@@ -344,7 +348,9 @@ class ScenarioPanel(QScrollArea):
             # 시나리오 파일이 있는 폴더 기준 상대 경로 (Windows 에서도 / 로 저장)
             relative = os.path.relpath(path, self.current_scenario().parent).replace("\\", "/")
             o.set("weather", "file", relative)
-            o.set("time", "start_datetime", start)
+        self.daylight_group.apply(o)
+        if self.weather_override is not None and self.weather_file_radio.isChecked():
+            o.set("time", "start_datetime", self.weather_override[1])   # 실제 기상의 시작 시각이 우선
         preset = self._current_preset()
         if preset is not None:
             o.set("moisture", "live_moisture_factor", preset.live_moisture_factor)
@@ -385,6 +391,7 @@ class ScenarioPanel(QScrollArea):
     def set_weather_override(self, override: tuple[Path, str] | None) -> None:
         """불러온 기상 파일을 쓰도록 설정한다. (None 이면 시나리오 파일의 기상 그대로)"""
         self.weather_override = override
+        self.daylight_group.set_start_locked(override[1] if override is not None else None)
         if override is None:
             self.weather_file_label.setText("")
             return

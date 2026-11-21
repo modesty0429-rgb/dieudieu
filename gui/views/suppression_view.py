@@ -206,7 +206,8 @@ class SuppressionView(QWidget):
         for row, s in enumerate(data.strategies):
             values = [s.name, f"{s.burned_area_ha:.1f} ha", f"{s.reduction_pct:.1f}% 감소" if row else "기준",
                       f"{s.trail_burned_km:.2f} km", f"{s.at_risk_hikers}팀 / {s.at_risk_people}명",
-                      f"{s.trapped_hikers}팀", f"{s.spot_fires}회", f"{len(s.drops)}회"]
+                      f"{s.trapped_hikers}팀", f"{s.spot_fires}회",
+                      f"{len(s.drops)}회" + (f" (🌙 {s.heli_grounded}회 중지)" if s.heli_grounded else "")]
             for column, text in enumerate(values):
                 item = QTableWidgetItem(text)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)

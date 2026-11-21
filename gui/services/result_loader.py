@@ -100,6 +100,7 @@ class HikerEvacuation:
     travel_time: float
     min_margin: float | None    # None 이면 경로 근처에 불이 오지 않음
     samples: np.ndarray         # [시각, x, y, 경보 번호, 남은 시간, 상태 번호] × 1분 간격
+    dark_walk_min: float = 0.0  # (8단계) 어두울 때 걸은 시간 (분)
 
     def _index_at(self, t: float) -> int:
         times = self.samples[:, 0]
@@ -144,6 +145,7 @@ def load_evacuation(path: Path) -> EvacuationData:
             exit_name=route.get("exit_name", ""), travel_time=route.get("travel_time_min", 0.0),
             min_margin=route.get("min_margin_min"),
             samples=np.asarray(h["samples"], dtype=np.float64).reshape(-1, 6),
+            dark_walk_min=float(h.get("dark_walk_min", 0.0)),
         ))
     return EvacuationData(data["settings"], data["summary"], data["alert_levels"], data["status_names"], hikers)
 
@@ -166,6 +168,7 @@ class StrategyResult:
     burnout: np.ndarray
     drops: np.ndarray            # [시각, x, y] × 살수 횟수
     firebreak_cells: list[tuple[int, int]]   # 이 전략이 쓴 방화선 (방화선 + 헬기는 헬기를 고려해 고른 것일 수 있음)
+    heli_grounded: int = 0       # (8단계) 해가 져서 못 한 출동 횟수
 
 
 @dataclass
@@ -203,6 +206,7 @@ def load_suppression(path: Path) -> SuppressionData:
             burnout=read_grid_csv(folder / s["burnout_file"]),
             drops=np.asarray(s["drops"], dtype=np.float64).reshape(-1, 3),
             firebreak_cells=[(int(x), int(y)) for x, y in s.get("firebreak_cells", [])],
+            heli_grounded=int(s.get("heli_grounded", 0)),
         ))
     firebreak = data["firebreak"]
     return SuppressionData(
@@ -268,6 +272,23 @@ class SimulationResult:
         arrived = (self.arrival >= 0) & (self.arrival <= t)
         not_out = (self.burnout < 0) | (self.burnout > t)
         return int(np.count_nonzero(arrived & not_out))
+
+    # ---- 낮/밤 (8단계) ----
+    @property
+    def daylight(self) -> dict | None:
+        """summary.json 의 낮/밤 정보. 반영하지 않았거나 예전 결과면 None"""
+        info = self.summary.get("daylight")
+        if not info or not info.get("enabled") or "daylight" not in self.stats:
+            return None
+        return info
+
+    def sun_at(self, t: float) -> tuple[float, float] | None:
+        """시각 t 의 (태양 고도°, 밝기 0~1). 10분 간격 통계를 직선 보간한다."""
+        if self.daylight is None:
+            return None
+        times = self.stats["time_min"]
+        return (float(np.interp(t, times, self.stats["sun_elevation_deg"])),
+                float(np.interp(t, times, self.stats["daylight"])))
 
 
 # ----------------------------------------------------------------------

@@ -28,6 +28,7 @@
 #include "spotting.h"
 #include "fuel_moisture.h"
 #include "weather.h"
+#include "daylight.h"
 #include "console_view.h"
 #include "suppression.h"
 #include "grid.h"
@@ -56,6 +57,7 @@ void sim_result_init(SimResult *res)
     res->fire_out = 0;
     res->drops = NULL;
     res->drop_count = 0;
+    res->heli_grounded = 0;
     res->drop_capacity = 0;
 }
 
@@ -416,6 +418,8 @@ static int record_stats(const Scenario *sc, FireState *state, double t,
     stats.spot_fires = res->spot_fire_count;
     stats.dead_moisture_pct = state->dead_moisture;
     stats.weather = *weather;
+    stats.sun_elevation_deg = solar_elevation_deg(sc, t);
+    stats.daylight = daylight_level(stats.sun_elevation_deg);
 
     if (state->interval_max_rate > res->max_spread_rate) {
         res->max_spread_rate = state->interval_max_rate;
@@ -460,7 +464,17 @@ int run_fire_simulation(Scenario *sc, const SimOptions *opts, unsigned int seed,
 
         /* (5단계) 헬기 출동 간격마다 살수 지점을 정해 물을 뿌린다 */
         if (opts->use_helicopters && sc->supp.helicopters > 0 && t >= next_drop - TIME_EPSILON) {
-            ok = plan_helicopter_drops(sc, &state, t, opts->heli_guide, res);
+            if (helicopter_can_fly(sc, t)) {
+                ok = plan_helicopter_drops(sc, &state, t, opts->heli_guide, res);
+            } else {
+                /* (8단계) 해가 진 뒤에는 헬기가 뜨지 못한다. 출동 간격은 그대로 세어 일출 후 다시 출동 */
+                if (res->heli_grounded == 0 && !opts->quiet) {
+                    char clock[8];
+                    format_clock_at(sc, t, clock, sizeof(clock));
+                    log_info("T+%.0f분 (%s) 해가 져서 헬기 출동 중지 (일출 후 다시 출동)", t, clock);
+                }
+                res->heli_grounded += sc->supp.helicopters;
+            }
             next_drop += sc->supp.heli_interval_min;
         }
 

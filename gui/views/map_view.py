@@ -23,7 +23,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 import theme
-from services import map_render
+from services import daylight_render, map_render
 from services.result_loader import MapData, SimulationResult
 
 pg.setConfigOptions(imageAxisOrder="row-major", antialias=True)
@@ -74,7 +74,14 @@ class MapView(QWidget):
         self.terrain_item = pg.ImageItem()
         self.fire_item = pg.ImageItem()
         self.fire_item.setZValue(10)
+        # (8단계) 낮/밤: 지도 전체를 덮는 어둠·노을 + 어두울 때 불 주변의 빛. 불은 그 위에 그려서 밤에 더 또렷하다
+        self.night_item = pg.ImageItem()
+        self.night_item.setZValue(8)
+        self.glow_item = pg.ImageItem()
+        self.glow_item.setZValue(9)
         self.plot.addItem(self.terrain_item)
+        self.plot.addItem(self.night_item)
+        self.plot.addItem(self.glow_item)
         self.plot.addItem(self.fire_item)
 
         self.trail_items: list[pg.PlotDataItem] = []
@@ -109,6 +116,7 @@ class MapView(QWidget):
         self.check_trails = self._add_check("등산로", True, self._update_trail_visibility)
         self.check_hikers = self._add_check("등산객", True, self._update_hiker_visibility)
         self.check_routes = self._add_check("대피 경로", True, self._update_route_visibility)
+        self.check_night = self._add_check("낮/밤", True, self._redraw_night)
         self.controls.addStretch(1)
         self.status_label = QLabel("")
         self.status_label.setObjectName("statusText")
@@ -148,6 +156,8 @@ class MapView(QWidget):
         self._clear_routes()
         self._clear_isochrones()
         self.fire_item.clear()
+        self.night_item.clear()
+        self.glow_item.clear()
         self.status_label.setText("")
         self.plot.setRange(xRange=(0, map_data.width), yRange=(0, map_data.height), padding=0.02)
 
@@ -171,10 +181,15 @@ class MapView(QWidget):
         """시각 t 의 불 모습을 그린다."""
         self.time = t
         self._redraw_fire()
+        self._redraw_night()
         self._draw_hikers()
         if self.result is not None:
-            self.status_label.setText(
-                f"피해 {self.result.burned_area_at(t):7.1f} ha  |  연소 중 {self.result.burning_cells_at(t):4d}칸")
+            text = f"피해 {self.result.burned_area_at(t):7.1f} ha  |  연소 중 {self.result.burning_cells_at(t):4d}칸"
+            sun = self.result.sun_at(t)
+            if sun is not None:
+                _, name, icon = daylight_render.sun_phase(sun[0])
+                text += f"  |  {icon} {name} (해 고도 {sun[0]:+.0f}°)"
+            self.status_label.setText(text)
 
     def set_ignitions(self, ignitions: list[tuple[int, int, float]]) -> None:
         """발화 지점 표시 (클릭으로 새로 고를 때도 사용)"""
@@ -237,6 +252,24 @@ class MapView(QWidget):
         overlay = map_render.fire_overlay(self.result.arrival, self.result.burnout, self.time)
         self.fire_item.setImage(overlay, levels=(0, 255))
         self.fire_item.setRect(0, 0, self.map.width, self.map.height)
+
+    def _redraw_night(self) -> None:
+        """(8단계) 시각 t 의 해 고도에 맞춰 지도를 어둡게(노을빛으로) 덮고, 밤에는 불빛을 더한다."""
+        sun = self.result.sun_at(self.time) if self.result is not None else None
+        if sun is None or not self.check_night.isChecked():
+            self.night_item.clear()
+            self.glow_item.clear()
+            return
+        elevation, level = sun
+        tint = np.array([[daylight_render.night_tint(level, elevation)]], dtype=np.uint8)
+        self.night_item.setImage(tint, levels=(0, 255))
+        self.night_item.setRect(0, 0, self.map.width, self.map.height)
+        if self.check_fire.isChecked():
+            glow = daylight_render.fire_glow(self.result.arrival, self.result.burnout, self.time, 1.0 - level)
+            self.glow_item.setImage(glow, levels=(0, 255))
+            self.glow_item.setRect(0, 0, self.map.width, self.map.height)
+        else:
+            self.glow_item.clear()
 
     def _draw_trails(self) -> None:
         for item in self.trail_items + self._node_labels:

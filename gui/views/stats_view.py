@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 import theme
 from services import map_render
+from services import daylight_render
 from services.result_loader import SimulationResult
 
 CURVE_COLORS = ["#e8743b", "#5aa9f0", "#4caf7a", "#f0d43a", "#b05cf0"]
@@ -154,6 +155,24 @@ class StatsView(QWidget):
         self.weather_plot.plot(t, st["rh_pct"] / 5.0, pen=pg.mkPen(CURVE_COLORS[2], width=2), name="습도 ÷ 5 (%)")
         self.weather_plot.plot(t, st["dead_moisture_pct"], pen=pg.mkPen(CURVE_COLORS[3], width=2),
                                name="연료 수분 (%)")
+        self._shade_night(result)
+
+    def _shade_night(self, result: SimulationResult) -> None:
+        """(8단계) 해가 진 구간을 시간 그래프 3개에 남색 띠로 표시한다."""
+        if result.daylight is None:
+            return
+        end_time = float(result.stats["time_min"][-1])
+        for start, end in daylight_render.night_spans(result.daylight, end_time):
+            for plot in (self.area_plot, self.rate_plot, self.weather_plot):
+                band = pg.LinearRegionItem(values=(start, end), movable=False,
+                                           brush=pg.mkBrush(40, 60, 140, 45), pen=pg.mkPen(None))
+                band.setZValue(-10)
+                plot.addItem(band)
+        sunset = next((e for e in result.daylight.get("events", []) if e["type"] == "sunset"), None)
+        if sunset is not None:
+            label = pg.TextItem(f"🌙 일몰 {sunset['clock']}", color=theme.TEXT_DIM, anchor=(0, 1))
+            label.setPos(sunset["time_min"], 0.0)          # 아래쪽에 (위쪽은 범례 자리)
+            self.area_plot.addItem(label)
 
     def _draw_monte_carlo(self, result: SimulationResult) -> None:
         mc = result.montecarlo

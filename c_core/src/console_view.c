@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include "console_view.h"
+#include "daylight.h"
 #include "trail_io.h"
 #include "evac_route.h"
 #include "grid.h"
@@ -349,6 +350,27 @@ void print_sim_statistics(const SimResult *res, double every_min)
  * ================================================================ */
 
 /* 시나리오 설정을 보기 좋게 출력한다. */
+/* (8단계) 낮/밤: 시작 시각의 해 고도와 시뮬레이션 기간의 일몰·일출 시각 */
+static void print_daylight_summary(const Scenario *sc)
+{
+    DayEvent events[MAX_DAY_EVENTS];
+    int      count, i;
+    char     clock[8];
+
+    if (!sc->daylight.enabled) {
+        printf(" 낮/밤       : 반영 안 함\n");
+        return;
+    }
+    printf(" 낮/밤       : 위도 %.2f°, 시작할 때 해 고도 %.1f°, 밤 보행 속도 %.0f%%%s\n",
+           sc->daylight.latitude_deg, solar_elevation_deg(sc, 0.0), sc->daylight.night_walk_factor * 100.0,
+           sc->daylight.heli_day_only ? ", 일몰 후 헬기 중지" : "");
+    count = find_day_events(sc, sc->sim.duration_min, events, MAX_DAY_EVENTS);
+    for (i = 0; i < count; i++) {
+        format_clock_at(sc, events[i].time_min, clock, sizeof(clock));
+        printf("               %s %s (T+%.0f분)\n", clock, day_event_label(events[i].type), events[i].time_min);
+    }
+}
+
 void print_scenario_summary(const Scenario *sc)
 {
     int i;
@@ -360,6 +382,7 @@ void print_scenario_summary(const Scenario *sc)
            sc->start_time.day, sc->start_time.hour, sc->start_time.minute);
     printf(" 진행 시간   : %.0f분 (한 단계 %.1f분, 저장 간격 %.0f분)\n",
            sc->sim.duration_min, sc->sim.time_step_min, sc->sim.output_interval_min);
+    print_daylight_summary(sc);
     printf(" 지도        : %d x %d 칸, 칸 크기 %.1f m\n", sc->grid.width, sc->grid.height, sc->grid.cell_size_m);
     if (sc->weather_mode == WEATHER_FIXED) {
         printf(" 기상        : 고정값 — 기온 %.1f°C, 습도 %.0f%%, 풍속 %.1f m/s, 풍향 %.0f°\n",
@@ -485,6 +508,10 @@ void print_evacuation_table(const Scenario *sc, const EvacSummary *summary)
                 printf(" (%.0f분)", h->finish_time_min);
             }
             printf("%s\n", hiker_is_at_risk(sc, h) ? "  ⚠ 위험" : "");
+            if (h->dark_walk_min > 0.0) {
+                printf("    어두운 길을 %.0f분 걸음 (밤에는 보행 속도 %.0f%%)\n",
+                       h->dark_walk_min, sc->daylight.night_walk_factor * 100.0);
+            }
         }
         if (h->route.found) {
             printf("    경로: ");

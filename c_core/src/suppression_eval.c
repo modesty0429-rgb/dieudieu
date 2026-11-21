@@ -128,6 +128,7 @@ static int evaluate_strategy(Scenario *sc, unsigned int seed, const double *weig
     out->burned_area_ha = res.final_area_ha;
     out->burned_cells = res.burned_cells;
     out->spot_fires = res.spot_fire_count;
+    out->heli_grounded = res.heli_grounded;
     out->trail_burned_km = burned_trail_km(&sc->grid, weights);
 
     if (out->firebreak != NULL) {
@@ -270,5 +271,11 @@ void print_strategy_table(const Scenario *sc, const SuppressionReport *report)
                s->evac.at_risk_hikers, s->evac.at_risk_people, s->spot_fires, s->drop_count);
     }
     printf("------------------------------------------------\n");
+    for (i = 0; i < STRATEGY_COUNT; i++) {
+        if (report->strategies[i].heli_grounded > 0) {
+            printf(" * %s: 해가 진 뒤 헬기 출동 %d회 중지 (야간 비행 불가)\n",
+                   report->strategies[i].name, report->strategies[i].heli_grounded);
+        }
+    }
     fflush(stdout);
 }

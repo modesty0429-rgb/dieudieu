@@ -210,6 +210,7 @@ typedef struct {
     int          track_count;
     HikerSample *samples;         /* 시간 간격별 상태 (동적 할당) */
     int          sample_count;
+    double       dark_walk_min;   /* 대피 중 어두울 때(박명·밤) 걸은 시간 (분) — 8단계 */
 } Hiker;
 
 /* ================================================================
@@ -262,6 +263,16 @@ typedef struct {
     double rh_sd;             /* 습도 오차 표준편차 (%) */
 } MonteCarloSettings;
 
+/* 낮/밤 설정 (8단계) */
+typedef struct {
+    int    enabled;            /* 1이면 낮/밤을 계산에 반영 */
+    double latitude_deg;       /* 산의 위도 (태양 고도 계산용) */
+    double longitude_deg;      /* 산의 경도 */
+    double utc_offset_h;       /* 표준시와 세계시의 차이 (한국 +9) */
+    double night_walk_factor;  /* 밤에 걷는 속도 배율 (0 ~ 1) */
+    int    heli_day_only;      /* 1이면 해가 진 뒤에는 헬기가 출동하지 않음 */
+} DaylightSettings;
+
 /* 연료 수분 설정 */
 typedef struct {
     double initial_dead_moisture_pct;  /* 시작 시 죽은 연료 수분 (%) */
@@ -299,6 +310,7 @@ typedef struct {
     SuppressionSettings supp;
     MonteCarloSettings  mc;
     MoistureSettings    moisture;
+    DaylightSettings    daylight;
     WeatherMode         weather_mode;
     WeatherRecord       fixed_weather;  /* weather_mode == WEATHER_FIXED 일 때 사용 */
     IgnitionPoint       ignitions[WF_MAX_IGNITIONS];
@@ -329,6 +341,8 @@ typedef struct {
     int    spot_fires;             /* 지금까지 비화로 생긴 불 수 */
     double dead_moisture_pct;      /* 죽은 연료 수분 (%) */
     WeatherRecord weather;         /* 이 시각의 기상 */
+    double sun_elevation_deg;      /* 태양 고도 (도) — 8단계 */
+    double daylight;               /* 밝기 0(밤) ~ 1(낮) — 8단계 */
 } StepStats;
 
 /* 셀 상태가 바뀐 사건 하나 (애니메이션 재생용) */
@@ -378,6 +392,7 @@ typedef struct {
     HeliDrop  *drops;              /* 헬기 살수 기록 (동적 배열) */
     int        drop_count;
     int        drop_capacity;
+    int        heli_grounded;      /* 해가 져서 출동하지 못한 헬기 출동 횟수 (대수 × 회) — 8단계 */
 } SimResult;
 
 #endif /* WF_TYPES_H */
