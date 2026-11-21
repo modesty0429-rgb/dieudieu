@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9899 | 약 8,000 | 124% |
-| Python | 5085 | 약 4,000 | 127% |
-| **합계** | **14984** | **약 12,000** | **125%** |
+| Python | 5239 | 약 4,000 | 131% |
+| **합계** | **15138** | **약 12,000** | **126%** |
 
 ## C
 
@@ -77,11 +77,11 @@
 | `gui/services/app_config.py` | 62 | 31 | 16 | 15 |
 | `gui/services/daylight_render.py` | 92 | 54 | 21 | 17 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/map_render.py` | 115 | 64 | 31 | 20 |
+| `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
 | `gui/services/result_loader.py` | 480 | 353 | 43 | 84 |
 | `gui/services/scenario_writer.py` | 152 | 104 | 25 | 23 |
-| `gui/services/season_render.py` | 89 | 52 | 20 | 17 |
+| `gui/services/season_render.py` | 238 | 155 | 48 | 35 |
 | `gui/services/terrain_generator.py` | 256 | 145 | 60 | 51 |
 | `gui/services/trail_generator.py` | 112 | 76 | 15 | 21 |
 | `gui/services/weather_api.py` | 236 | 153 | 46 | 37 |
@@ -91,7 +91,7 @@
 | `gui/views/evacuation_view.py` | 214 | 176 | 11 | 27 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
 | `gui/views/main_window.py` | 286 | 220 | 31 | 35 |
-| `gui/views/map_view.py` | 500 | 395 | 52 | 53 |
+| `gui/views/map_view.py` | 502 | 397 | 52 | 53 |
 | `gui/views/playback_bar.py` | 124 | 90 | 10 | 24 |
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
 | `gui/views/scenario_panel.py` | 438 | 352 | 39 | 47 |
@@ -100,4 +100,4 @@
 | `gui/views/weather_dialog.py` | 157 | 128 | 9 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/run_tests.py` | 392 | 298 | 41 | 53 |
-| **합계** | **5085** | **3647** | **689** | **749** |
+| **합계** | **5239** | **3755** | **717** | **767** |
