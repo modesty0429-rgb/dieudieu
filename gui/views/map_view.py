@@ -234,6 +234,8 @@ class MapView(QWidget):
                                          season=season, snow_line_m=snow)
         self.terrain_item.setImage(image, levels=(0, 255))
         self.season_label.setText(season_badge(self.map.season, self.map.snow_line_m))
+        season_line = season_render.legend_html(season)
+        self.legend_label.setText(self._legend_html() + ("<br>" + season_line if season_line else ""))
         self.terrain_item.setRect(0, 0, self.map.width, self.map.height)
 
     def _draw_contours(self) -> None:

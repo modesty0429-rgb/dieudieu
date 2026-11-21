@@ -55,14 +55,17 @@ def terrain_image(elevation: np.ndarray, fuel: np.ndarray, cell_size: float,
     (9단계) season 을 주면 숲 색을 계절 색으로 바꾸고, snow_line_m 보다 높은 곳은 눈으로 덮는다.
     """
     shade = hillshade(elevation, cell_size)
-    brightness = 0.35 + 0.65 * shade                     # 너무 어둡지 않게
+    low = season_render.SEASON_MIN_BRIGHTNESS.get(season, 0.35) if show_fuel else 0.35
+    brightness = low + (1.0 - low) * shade               # 너무 어둡지 않게
     if show_fuel:
         colors = fuel_color_table()[np.clip(fuel, 0, 31)]
-        colors = season_render.season_colors(colors, fuel, season)
+        colors, pop = season_render.season_layers(colors, fuel, season, elevation)
+        brightness = brightness * (1 - pop) + (0.80 + 0.20 * shade) * pop   # 꽃은 그늘에서도 화사하게
     else:
         colors = np.full(elevation.shape + (3,), 175.0)
     rgb = colors * brightness[..., None]
-    rgb = season_render.apply_snow(rgb, shade, season_render.snow_mask(elevation, fuel, snow_line_m))
+    rgb = season_render.apply_snow(rgb, shade, season_render.snow_mask(elevation, fuel, snow_line_m),
+                                   elevation, fuel, snow_line_m)
     return np.clip(rgb, 0, 255).astype(np.uint8)
 
 
