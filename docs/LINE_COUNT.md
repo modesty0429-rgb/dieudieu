@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9899 | 약 8,000 | 124% |
-| Python | 5239 | 약 4,000 | 131% |
-| **합계** | **15138** | **약 12,000** | **126%** |
+| Python | 5808 | 약 4,000 | 145% |
+| **합계** | **15707** | **약 12,000** | **131%** |
 
 ## C
 
@@ -77,6 +77,7 @@
 | `gui/services/app_config.py` | 62 | 31 | 16 | 15 |
 | `gui/services/daylight_render.py` | 92 | 54 | 21 | 17 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
+| `gui/services/hiker_setup.py` | 230 | 151 | 40 | 39 |
 | `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
 | `gui/services/result_loader.py` | 480 | 353 | 43 | 84 |
@@ -89,15 +90,16 @@
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/views/daylight_group.py` | 94 | 65 | 12 | 17 |
 | `gui/views/evacuation_view.py` | 214 | 176 | 11 | 27 |
+| `gui/views/hiker_group.py` | 239 | 175 | 28 | 36 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
-| `gui/views/main_window.py` | 286 | 220 | 31 | 35 |
-| `gui/views/map_view.py` | 502 | 397 | 52 | 53 |
+| `gui/views/main_window.py` | 327 | 254 | 34 | 39 |
+| `gui/views/map_view.py` | 509 | 403 | 53 | 53 |
 | `gui/views/playback_bar.py` | 124 | 90 | 10 | 24 |
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
-| `gui/views/scenario_panel.py` | 438 | 352 | 39 | 47 |
+| `gui/views/scenario_panel.py` | 442 | 356 | 39 | 47 |
 | `gui/views/stats_view.py` | 226 | 181 | 18 | 27 |
 | `gui/views/suppression_view.py` | 226 | 180 | 16 | 30 |
 | `gui/views/weather_dialog.py` | 157 | 128 | 9 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
-| `tools/run_tests.py` | 392 | 298 | 41 | 53 |
-| **합계** | **5239** | **3755** | **717** | **767** |
+| `tools/run_tests.py` | 440 | 335 | 46 | 59 |
+| **합계** | **5808** | **4162** | **794** | **852** |

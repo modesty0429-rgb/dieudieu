@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
@@ -74,6 +75,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("산불 확산 예측 및 등산객 대피 안내 시스템")
         self.resize(1400, 900)
         self.result: SimulationResult | None = None
+        self.preview = None                      # 실행 전 지도 (시나리오 파일에서 읽음)
         self.runner = EngineRunner(self)
 
         self._build_widgets()
@@ -154,7 +156,9 @@ class MainWindow(QMainWindow):
         self.panel.scenario_changed.connect(self.load_preview)
         self.panel.season_preview_changed.connect(self._on_season_preview)
         self.panel.ignition_changed.connect(self._on_ignition_changed)
-        self.map_view.cell_clicked.connect(self.panel.set_ignition)
+        self.map_view.cell_clicked.connect(self._on_map_clicked)
+        self.panel.hiker_group.teams_changed.connect(self._on_teams_changed)
+        self.panel.hiker_group.pick_mode_changed.connect(self._on_pick_mode)
         self.playback.time_changed.connect(self.map_view.set_time)
         self.playback.time_changed.connect(self.evacuation_view.update_time)
         self.playback.time_changed.connect(self.suppression_view.update_time)
@@ -183,6 +187,13 @@ class MainWindow(QMainWindow):
         except (OSError, ValueError, KeyError) as error:
             self.status_bar.show_message(f"시나리오 미리보기 실패: {error}", theme.ERROR)
             return
+        self.preview = preview
+        self.panel.hiker_group.load(preview.nodes, preview.edges, preview.hikers)   # (10단계) 등산객 팀
+        self._show_preview(preview)
+        self.status_bar.show_message(f"시나리오 '{preview.name}' 지도 ({preview.width}×{preview.height}칸)")
+
+    def _show_preview(self, preview) -> None:
+        """실행 전 화면: 지도·등산로·등산객·발화 지점 (결과는 지움)"""
         self.result = None
         self.map_view.set_map(preview)
         self.evacuation_view.set_data(None, preview)
@@ -193,7 +204,37 @@ class MainWindow(QMainWindow):
         self._on_ignition_changed(self.panel.ignition_x.value(), self.panel.ignition_y.value())
         self.playback.set_sun_provider(None)
         self.playback.set_range(0.0, preview.start_time)
-        self.status_bar.show_message(f"시나리오 '{preview.name}' 지도 ({preview.width}×{preview.height}칸)")
+
+    def _on_teams_changed(self) -> None:
+        """(10단계) 등산객 팀을 바꾸면 지도 미리보기에 바로 반영 (지도에서 찍은 곳은 등산로를 나눠 새 지점)"""
+        if getattr(self, "preview", None) is None:
+            return
+        try:
+            nodes, edges, hikers = self.panel.hiker_group.layout_for_preview()
+        except ValueError as error:
+            self.status_bar.show_message(str(error), theme.ERROR)
+            return
+        current = self.map_view.map or self.preview
+        preview = replace(self.preview, nodes=nodes, edges=edges, hikers=hikers,
+                          season=current.season, snow_line_m=current.snow_line_m)
+        had_result = self.result is not None
+        self._show_preview(preview)
+        total = sum(h.people for h in hikers)
+        note = " (이전 결과는 지웠습니다. 다시 실행하세요)" if had_result else ""
+        self.status_bar.show_message(f"등산객 {len(hikers)}팀, {total}명{note}")
+
+    def _on_map_clicked(self, x: int, y: int) -> None:
+        """지도 클릭: 위치 찍기 모드면 등산객 팀 위치, 아니면 발화 지점"""
+        group = self.panel.hiker_group
+        if group.picking:
+            message = group.place_at(x, y)
+            self.status_bar.show_message(message)
+        else:
+            self.panel.set_ignition(x, y)
+
+    def _on_pick_mode(self, on: bool) -> None:
+        if on:
+            self.status_bar.show_message("📍 지도의 등산로(점선)를 클릭해 팀 위치를 정하세요. 발화 지점은 바뀌지 않습니다.")
 
     def _on_season_preview(self, season, snow_line_m: float) -> None:
         """(9단계) 왼쪽에서 계절을 고르면 바로 지도 색을 바꿔 보여 준다. (다음 실행 결과도 같은 계절)"""

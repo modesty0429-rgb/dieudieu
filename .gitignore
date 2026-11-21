@@ -24,3 +24,7 @@ venv/
 
 # GUI가 실행할 때마다 다시 만드는 시나리오
 data/scenarios/gui_custom.ini
+
+# GUI가 등산객 팀 설정으로 만드는 등산로·등산객 파일
+data/trails/gui_trails.txt
+data/trails/gui_hikers.txt
