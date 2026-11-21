@@ -1,0 +1,22 @@
+{
+  "forest_source": null,
+  "id": "hallasan",
+  "name": "한라산",
+  "peak": "백록담",
+  "center": [
+    33.3617,
+    126.5292
+  ],
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    556.2,
+    1934.6
+  ],
+  "trail_source": null,
+  "ignition": [
+    92,
+    206
+  ]
+}

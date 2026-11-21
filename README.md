@@ -183,6 +183,7 @@ wildfire.exe <시나리오.ini> [--mode 모드] [--out 결과폴더] [--seed 시
 | `spring_danger_valley.ini` | 계곡 아래 발화 + 남서풍 11 m/s + 신고 140분 지연. 등산객 1팀이 고립되는 위험 사례 |
 | `calm_fixed_weather.ini` | 무풍 고정 기상. 경사 효과(오르막으로 더 번짐) 확인용 |
 | `tests/*.ini` | 일부러 틀린 시나리오 5개 (오류 메시지 확인용) |
+| `mountain_<산>.ini` | **실제 산** 6곳(북한산·설악산·오대산·지리산·팔공산·한라산)의 실제 지형. GUI에서는 "실제 산: 지리산 (천왕봉)"처럼 보임 (7-1 참고) |
 
 ### 4-2. 실행 예
 
@@ -277,6 +278,49 @@ python gui/services/trail_generator.py
 - **연료 파라미터**는 `data/scenarios/fuel_models.csv`, **계절 프리셋**은 `data/scenarios/season_presets.ini`에 있습니다. 값마다 [근거]/[가정]을 표시했습니다.
 
 줄 수 집계: `python tools/count_lines.py` → `docs/LINE_COUNT.md`
+
+### 7-1. 실제 산 데이터 (지형 + 산림청 등산로·임상도)
+
+`data/mountains/<산 id>/` 에 정상을 가운데로 하는 9 km × 9 km(300 × 300칸) 데이터가 있습니다.
+산 목록과 위치는 `data/mountains/mountains.json` (기상청 예보 받기 위치 목록도 여기서 읽음).
+
+| 데이터 | 지금 상태 | 출처 |
+|---|---|---|
+| 지형 `elev.asc` | **실제 지형** (6개 산 모두 포함) | AWS Terrain Tiles (한국은 SRTM 30 m 기반). 정상 고도 오차 약 1% |
+| 연료 `fuel.asc` | **[임시]** 사면 방향 규칙 (가상 산과 같은 규칙) | 산림청 임상도를 반영하면 실제 숲 종류로 바뀜 |
+| 등산로 `trails.txt` | **없음** → 대피 안내 계산 안 함 | 산림청 등산로를 반영하면 생김 (등산객 5팀 자동 배치) |
+
+GUI 시나리오 칸 아래에 산마다 반영 상태가 표시됩니다.
+
+**① 산림청 자료 받기** (용량이 커서 저장소에 넣지 않습니다. `data/raw/` 에 두면 git이 무시합니다)
+- 등산로: 산림청 "산림공간정보서비스" 또는 공공데이터포털에서 **"등산로"** 검색 → 산별 SHP (선 레이어 + 지점(spot) 레이어)
+- 임상도: 산림공간정보서비스 → **임상도(1:5,000 또는 1:25,000)** SHP (시·도 단위)
+- SHP는 `.shp .shx .dbf .prj` 네 파일이 같은 폴더에 있어야 합니다.
+
+**② 변환** (저장소 폴더에서, `python -m pip install pyshp pyproj pillow` 먼저)
+
+```bash
+python gui/services/forest_import.py fields data/raw/북한산_등산로.shp
+```
+
+```bash
+python gui/services/forest_import.py trails --id bukhansan --lines data/raw/북한산_등산로.shp --spots data/raw/북한산_지점.shp
+```
+
+```bash
+python gui/services/forest_import.py forest --id bukhansan --shp data/raw/임상도_서울.shp
+```
+
+- `fields`: 필드 이름과 예시 값을 보여 줍니다. 이름·종류 필드를 자동으로 못 찾으면 `--name-field`, `--type-field`, `--field` 로 지정
+- 좌표계는 `.prj` 를 읽어 자동 판단(산림청 자료는 보통 EPSG:5186/5179). `.prj` 가 없으면 `--crs 5186`
+- 임종 코드 → 연료 코드 표는 `data/mountains/forest_fuel_map.csv` (죽림·무립목지·비산림 처리는 [가정])
+- 변환하면 `data/scenarios/mountain_<id>.ini` 가 자동으로 다시 만들어져 등산로가 들어갑니다.
+
+**③ 다른 산 추가**: `mountains.json` 에 id·이름·정상·위도/경도를 넣고 (인터넷 필요)
+
+```bash
+python gui/services/mountain_builder.py --id 새산id
+```
 
 ## 8. 문서
 

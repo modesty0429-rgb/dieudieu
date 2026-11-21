@@ -1,0 +1,11 @@
+{
+  "_설명": "실제 산 목록. center = 정상 위치(위도, 경도), elevation_m = 공식 정상 고도(참고용). 지도는 center 를 가운데로 하는 300×300칸(30 m) = 9 km × 9 km",
+  "mountains": [
+    {"id": "bukhansan",  "name": "북한산", "peak": "백운대", "center": [37.6584, 126.9779], "elevation_m": 836},
+    {"id": "seoraksan",  "name": "설악산", "peak": "대청봉", "center": [38.1194, 128.4656], "elevation_m": 1708},
+    {"id": "odaesan",    "name": "오대산", "peak": "비로봉", "center": [37.7944, 128.5433], "elevation_m": 1563},
+    {"id": "jirisan",    "name": "지리산", "peak": "천왕봉", "center": [35.3369, 127.7306], "elevation_m": 1915},
+    {"id": "palgongsan", "name": "팔공산", "peak": "비로봉", "center": [36.0164, 128.6947], "elevation_m": 1192},
+    {"id": "hallasan",   "name": "한라산", "peak": "백록담", "center": [33.3617, 126.5292], "elevation_m": 1947}
+  ]
+}

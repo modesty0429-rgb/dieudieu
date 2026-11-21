@@ -24,3 +24,8 @@ venv/
 
 # GUI가 실행할 때마다 다시 만드는 시나리오
 data/scenarios/gui_custom.ini
+
+# 산 지형 타일 내려받기 캐시
+data/mountains/_cache/
+# 산림청 원본 자료 (용량이 커서 올리지 않음, 변환 결과만 올림)
+data/raw/

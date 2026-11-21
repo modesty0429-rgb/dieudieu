@@ -1,0 +1,22 @@
+{
+  "forest_source": null,
+  "id": "bukhansan",
+  "name": "북한산",
+  "peak": "백운대",
+  "center": [
+    37.6584,
+    126.9779
+  ],
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    28.4,
+    810.8
+  ],
+  "trail_source": null,
+  "ignition": [
+    92,
+    206
+  ]
+}

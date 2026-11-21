@@ -1,0 +1,22 @@
+{
+  "forest_source": null,
+  "id": "jirisan",
+  "name": "지리산",
+  "peak": "천왕봉",
+  "center": [
+    35.3369,
+    127.7306
+  ],
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    476.5,
+    1898.0
+  ],
+  "trail_source": null,
+  "ignition": [
+    92,
+    206
+  ]
+}

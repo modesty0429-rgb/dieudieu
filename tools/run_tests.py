@@ -11,6 +11,8 @@
           경계 조건 (등산객 없음, 진화 자원 0, 불이 안 붙음, 젖은 연료)
           줄바꿈 형식 (LF / CRLF 입력 파일에서 같은 결과)
   [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기
+  [실제 산] 산 시나리오 6개 실행, 격자↔위경도, [임시] 연료 규칙,
+          시험용 산림청 SHP(등산로·임상도) 변환 → 엔진 실행 (pyshp·pyproj·pillow 가 있을 때)
 
 결과는 항목마다 "통과 / 실패"로 출력되고, 하나라도 실패하면 종료 코드 1.
 (외부 테스트 도구 없이 표준 라이브러리 + numpy 만 사용)
@@ -204,6 +206,81 @@ def test_python_helpers(tmp: Path) -> None:
         check("결과 읽기", False, "앞의 엔진 시험 결과가 없음")
 
 
+# ----------------------------------------------------------------------
+# 실제 산 (기능 브랜치 feature/mountain-types)
+# ----------------------------------------------------------------------
+def test_real_mountains(tmp: Path) -> None:
+    print("\n[실제 산] 지형·변환 도구")
+    import numpy as np
+    from services import mountain_builder as mb
+
+    failed = []
+    for ini in sorted(SCENARIOS.glob("mountain_*.ini")):
+        code, text = run_engine(ini, "run", tmp / ini.stem)
+        if code != 0 or "[ERROR]" in text:
+            failed.append(ini.stem)
+    check("실제 산 시나리오 6개 실행", not failed and len(list(SCENARIOS.glob("mountain_*.ini"))) >= 6, f"실패: {failed}")
+
+    center = (37.6584, 126.9779)
+    lat, lon = mb.grid_cell_latlon(center)
+    gx, gy = mb.latlon_to_grid(lat, lon, center)
+    check("격자 ↔ 위경도 왕복", float(np.abs(gx - np.arange(300)[None, :]).max()) < 1e-6
+          and float(np.abs(gy - np.arange(300)[:, None]).max()) < 1e-6)
+
+    yy, xx = np.mgrid[0:300, 0:300]
+    cone = 1000.0 - 3.0 * np.hypot(xx - 150, yy - 150)          # 원뿔 산: 남쪽(y 큰 쪽) 사면은 남향
+    fuel = mb.rule_based_fuel(cone)
+    check("[임시] 사면 규칙: 남향 침엽수·북향 활엽수", fuel[220, 150] == mb.FUEL_CONIFER and fuel[80, 150] == mb.FUEL_BROADLEAF)
+
+    try:
+        import shapefile  # noqa: F401
+        import pyproj  # noqa: F401
+        import PIL  # noqa: F401
+    except ImportError:
+        check("산림청 SHP 변환 (pyshp·pyproj·pillow 없음 → 건너뜀)", True)
+        return
+    mountain_sandbox_import(tmp)
+
+
+def mountain_sandbox_import(tmp: Path) -> None:
+    """시험용 SHP(EPSG:5186, cp949)를 만들어 임시 폴더의 북한산 데이터에 반영하고 엔진으로 실행"""
+    from services import forest_import as fi
+    from services import mountain_builder as mb
+    from services.result_loader import read_asc
+
+    root = tmp / "sandbox"
+    shutil.copytree(PROJECT_ROOT / "data" / "mountains", root / "mountains", ignore=shutil.ignore_patterns("_cache"))
+    shutil.copytree(PROJECT_ROOT / "data" / "weather", root / "weather")
+    (root / "scenarios").mkdir()
+    shutil.copy(SCENARIOS / "fuel_models.csv", root / "scenarios")
+    shp = tmp / "shp"
+    done = subprocess.run([sys.executable, str(PROJECT_ROOT / "tools" / "make_test_shp.py"), "--out", str(shp)],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if not check("시험용 SHP 만들기", done.returncode == 0, done.stderr[-300:]):
+        return
+
+    saved = (mb.MOUNTAIN_DIR, mb.REGISTRY_FILE, app_config.SCENARIO_DIR)
+    mb.MOUNTAIN_DIR, mb.REGISTRY_FILE = root / "mountains", root / "mountains" / "mountains.json"
+    app_config.SCENARIO_DIR = root / "scenarios"
+    try:
+        trails = fi.import_trails("bukhansan", shp / "test_trails.shp", shp / "test_spots.shp")
+        text = (root / "mountains" / "bukhansan" / "trails.txt").read_text(encoding="utf-8")
+        check("등산로 변환: 노드·간선·지점 이름", trails["nodes"] >= 8 and trails["edges"] >= 8
+              and "SUMMIT   149 149 백운대" in text and "SHELTER" in text and "지도경계동" in text, text[:400])
+        check("등산로 변환: 길에서 먼 지점은 붙이지 않음", "길에서먼쉼터" not in text)
+        forest = fi.import_forest("bukhansan", shp / "test_forest.shp",
+                                  fuel_map_path=root / "mountains" / "forest_fuel_map.csv")
+        fuel = read_asc(root / "mountains" / "bukhansan" / "fuel.asc")[1]
+        check("임상도 변환: 임종 코드 → 연료 코드, 구멍·비산림",
+              fuel[100, 200] == 3 and fuel[100, 100] == 4 and fuel[230, 120] == 5 and fuel[216, 83] == 1
+              and fuel[180, 200] == 2 and fuel[260, 260] == 9, str(forest))
+        scenario = root / "scenarios" / "mountain_bukhansan.ini"
+        code, out = run_engine(scenario, "evac", tmp / "sandbox_out")
+        check("변환한 데이터로 엔진 대피 계산", code == 0 and "등산객 읽기 완료: 5팀" in out, out[-300:])
+    finally:
+        mb.MOUNTAIN_DIR, mb.REGISTRY_FILE, app_config.SCENARIO_DIR = saved
+
+
 def main() -> int:
     exe = app_config.engine_path()
     print(f"엔진: {exe}")
@@ -219,6 +296,7 @@ def main() -> int:
         test_edge_cases(tmp)
         test_line_endings(tmp)
         test_python_helpers(tmp)
+        test_real_mountains(tmp)
 
     failed = [name for name, ok, _ in results if not ok]
     print(f"\n결과: {len(results) - len(failed)}/{len(results)} 통과")
