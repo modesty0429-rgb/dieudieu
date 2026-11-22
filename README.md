@@ -288,7 +288,7 @@ python gui/services/trail_generator.py
 | 데이터 | 지금 상태 | 출처 |
 |---|---|---|
 | 지형 `elev.asc` | **실제 지형** (6개 산 모두 포함) | AWS Terrain Tiles (한국은 SRTM 30 m 기반). 정상 고도 오차 약 1% |
-| 연료 `fuel.asc` | **한라산 빼고 5곳 산림청 임상도 반영 완료** (도엽 20~25장). 한라산은 [임시] 사면 방향 규칙 | 산림청 1:5,000 임상도 |
+| 연료 `fuel.asc` | **6곳 모두 산림청 임상도 반영** (도엽 20~25장, 한라산은 98%) | 산림청 1:5,000 임상도 |
 | 등산로 `trails.txt` | **한라산 빼고 5곳 반영** (설악산 69.5 km, 지리산 60.8, 북한산 12.5, 전북 팔공산 8.6, 충남 오대산 4.2). 한라산은 없음 → 대피 안내 계산 안 함 | 산림청 등산로 (등산객 최대 5팀 자동 배치) |
 
 GUI 시나리오 칸 아래에 산마다 반영 상태가 표시됩니다.
@@ -323,7 +323,7 @@ python gui/services/forest_import.py forest --shp data/raw/임상도/*.shp
 
 - `fields`: 필드 이름과 예시 값을 보여 줍니다. 이름·종류 필드를 자동으로 못 찾으면 `--name-field`, `--type-field`, `--field` 로 지정
 - 좌표계는 `.prj` 를 읽어 자동 판단(산림청 자료는 보통 EPSG:5186/5179). `.prj` 가 없으면 `--crs 5186`
-- 임종 코드 → 연료 코드 표는 `data/mountains/forest_fuel_map.csv` (죽림·무립목지·비산림 처리는 [가정])
+- 임종 코드 → 연료 코드 표는 `data/mountains/forest_fuel_map.csv` (죽림·무립목지·비산림 처리는 [가정]). 산마다 다르게 볼 코드는 `data/mountains/<산>/forest_fuel_map.csv` 로 덮어씀 (예: 한라산)
 - 변환하면 `data/scenarios/mountain_<id>.ini` 가 자동으로 다시 만들어져 등산로가 들어갑니다.
 
 **③ 다른 산 추가**: `mountains.json` 에 id·이름·정상·위도/경도를 넣고 (인터넷 필요)

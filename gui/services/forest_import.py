@@ -837,6 +837,11 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
         raise ValueError(f"넣은 임상도 파일 중 {mountain['name']} 지도와 겹치는 것이 없음 "
                          f"(필요한 도엽: forest_import.py sheets --id {mountain_id})")
     mapping, outside_forest = load_fuel_map(fuel_map_path)
+    local_map = folder / "forest_fuel_map.csv"           # 산마다 다르게 볼 코드가 있으면 덮어쓴다 (예: 한라산 고지대 제지)
+    if local_map.exists():
+        local, local_outside = load_fuel_map(local_map)
+        mapping.update(local)
+        outside_forest = local_outside if "*" in local_map.read_text(encoding="utf-8") else outside_forest
     elevation = read_asc(folder / "elev.asc")[1]
     fuel = mb.rule_based_fuel(elevation)                 # 받지 않은 도엽 자리는 [임시] 규칙
     covered = np.zeros(fuel.shape, dtype=bool)
@@ -859,7 +864,7 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
     write_asc(folder / "fuel.asc", fuel, mb.CELL_SIZE_M, "{:d}")
 
     info = mb.read_info(mountain_id)
-    info["forest_source"] = {"files": [p.name for p in files], "field": ", ".join(sorted(fields)),
+    info["forest_source"] = {"files": [p.name for p in files], "local_fuel_map": local_map.exists(), "field": ", ".join(sorted(fields)),
                              "imported": str(date.today()),
                              "covered_pct": round(100.0 * float(covered.mean()), 1),
                              "cells_by_code": dict(sorted(counts.items())), "outside_forest_cells": outside, "painted_fuel_cells": final_codes,
