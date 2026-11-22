@@ -3,7 +3,7 @@
 #   종류: JUNCTION 갈림길, SHELTER 대피소, PARKING 주차장(지도 경계·들머리 포함), SUMMIT 정상, POINT 기타
 NODE   1 PARKING  132 174 들머리1
 NODE   2 PARKING  170 152 들머리2
-NODE   3 SUMMIT   127 156 최고점645m
+NODE   3 SUMMIT   127 156 정상
 NODE   4 POINT    145 141 최고점632m
 
 # EDGE 시작번호 끝번호 경유점개수 [x1 y1 x2 y2 ...]

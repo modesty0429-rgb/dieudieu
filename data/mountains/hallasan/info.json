@@ -62,7 +62,19 @@
     556.2,
     1934.6
   ],
-  "trail_source": null,
+  "trail_source": {
+    "files": [
+      "osm_trails.shp"
+    ],
+    "imported": "2026-11-22",
+    "nodes": 34,
+    "edges": 27,
+    "length_km": 40.8,
+    "spots_used": 1,
+    "hikers": 5,
+    "gaps_bridged": 1,
+    "provider": "OpenStreetMap (© OpenStreetMap contributors, ODbL)"
+  },
   "ignition": [
     92,
     206

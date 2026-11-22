@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9135 | 약 8,000 | 114% |
-| Python | 6035 | 약 4,000 | 151% |
-| **합계** | **15170** | **약 12,000** | **126%** |
+| Python | 6318 | 약 4,000 | 158% |
+| **합계** | **15453** | **약 12,000** | **129%** |
 
 ## C
 
@@ -72,9 +72,10 @@
 | `gui/services/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/services/app_config.py` | 62 | 31 | 16 | 15 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/forest_import.py` | 951 | 697 | 118 | 136 |
+| `gui/services/forest_import.py` | 1028 | 756 | 128 | 144 |
 | `gui/services/map_render.py` | 110 | 60 | 30 | 20 |
-| `gui/services/mountain_builder.py` | 424 | 245 | 108 | 71 |
+| `gui/services/mountain_builder.py` | 425 | 246 | 108 | 71 |
+| `gui/services/overture_trails.py` | 195 | 130 | 28 | 37 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
 | `gui/services/result_loader.py` | 423 | 312 | 35 | 76 |
 | `gui/services/scenario_writer.py` | 148 | 100 | 25 | 23 |
@@ -95,5 +96,5 @@
 | `gui/views/weather_dialog.py` | 163 | 133 | 10 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
-| `tools/run_tests.py` | 314 | 233 | 34 | 47 |
-| **합계** | **6035** | **4283** | **845** | **907** |
+| `tools/run_tests.py` | 324 | 242 | 34 | 48 |
+| **합계** | **6318** | **4482** | **883** | **953** |

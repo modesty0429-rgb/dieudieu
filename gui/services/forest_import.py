@@ -457,7 +457,7 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
       지도 경계에서 잘린 끝     → PARKING "지도경계(방향)"  [가정: 9 km 지도 밖은 안전 지역]
       막다른 끝 중 '시종점' 지점이거나 낮은 곳 → PARKING "들머리"  [가정: 등산로 끝의 낮은 곳은 보통 들머리]
       막다른 끝 중 높은 곳      → POINT
-      정상 위치 근처(300 m)     → SUMMIT 정상 이름 (지점 자료에 정상이 없을 때)
+      정상 위치 1 km 안의 가장 높은 노드 → SUMMIT 정상 이름 (지점 자료에 정상이 없을 때)
       나머지                    → JUNCTION "갈림길"
     """
     degree = defaultdict(int)
@@ -489,9 +489,12 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
         node.name = node.name if node.spot and node.name else numbered(base)
 
     if nodes and not any(n.type == "SUMMIT" for n in nodes):
+        # 정상 위치에서 1 km(33칸) 안의 노드 중 가장 높은 곳 (분화구처럼 정상 위치에 길이 없는 산도 있음)
         sx, sy = mb.summit_grid(mountain)
-        k = int(np.argmin([(n.x - sx) ** 2 + (n.y - sy) ** 2 for n in nodes]))
-        if (nodes[k].x - sx) ** 2 + (nodes[k].y - sy) ** 2 <= 10 ** 2 and nodes[k].type != "PARKING":
+        near = [i for i, n in enumerate(nodes)
+                if (n.x - sx) ** 2 + (n.y - sy) ** 2 <= 33 ** 2 and n.type != "PARKING"]
+        if near:
+            k = max(near, key=lambda i: float(elevation[nodes[i].y, nodes[i].x]))
             nodes[k].type, nodes[k].name = "SUMMIT", mountain["peak"]
     for node in nodes:
         node.name = "".join(node.name.split())[:NAME_MAX_CHARS] or "지점"
@@ -563,6 +566,75 @@ def data_location_hint(path: Path, mountain: dict, crs: str | None, encoding: st
     else:
         hint += "\n  같은 산의 다른 구역 자료일 수 있음 (큰 산은 시·군·구별로 나뉘어 있음)"
     return hint
+
+
+GAP_BRIDGE_CELLS = 8          # 막다른 끝과 다른 길 사이가 이만큼(240 m) 안이면 이어 준다 [가정]
+
+
+def bridge_gaps(nodes: list[Node], edges: list[Edge], max_cells: int = GAP_BRIDGE_CELLS) -> int:
+    """
+    자료의 작은 빈틈(주차장 안 길, 도로 건너기 등이 빠진 곳) 때문에 끊긴 등산로를 잇는다.
+    막다른 끝(간선 1개, 지도 경계 아님)에서 다른 묶음(연결 요소)의 가장 가까운 노드가 max_cells 안이면 직선 간선을 추가한다.
+    이은 개수를 돌려준다.
+    """
+    def components() -> list[int]:
+        parent = list(range(len(nodes)))
+
+        def find(a: int) -> int:
+            while parent[a] != a:
+                parent[a] = parent[parent[a]]
+                a = parent[a]
+            return a
+        for e in edges:
+            parent[find(e.a)] = find(e.b)
+        return [find(i) for i in range(len(nodes))]
+
+    added = 0
+    while True:
+        comp = components()
+        degree = defaultdict(int)
+        for e in edges:
+            degree[e.a] += 1
+            degree[e.b] += 1
+        best = None
+        for i, n in enumerate(nodes):
+            if degree[i] != 1 or n.cut:
+                continue
+            for j, m in enumerate(nodes):
+                if comp[j] == comp[i]:
+                    continue
+                d2 = (n.x - m.x) ** 2 + (n.y - m.y) ** 2
+                if d2 <= max_cells ** 2 and (best is None or d2 < best[0]):
+                    best = (d2, i, j)
+        if best is None:
+            return added
+        _, i, j = best
+        edges.append(Edge(i, j, [(nodes[i].x, nodes[i].y), (nodes[j].x, nodes[j].y)]))
+        added += 1
+
+
+def summit_on_trail(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mountain: dict) -> None:
+    """
+    정상 노드가 없으면(정상 근처 길이 '그냥 이어지는 점'으로 합쳐진 경우 등),
+    정상 위치 1 km 안에서 등산로의 가장 높은 칸을 노드로 만들어 간선을 나누고 정상으로 정한다.
+    """
+    if any(n.type == "SUMMIT" for n in nodes):
+        return
+    sx, sy = mb.summit_grid(mountain)
+    best = None
+    for ei, e in enumerate(edges):
+        for ci in range(1, len(e.cells) - 1):
+            x, y = e.cells[ci]
+            if (x - sx) ** 2 + (y - sy) ** 2 <= 33 ** 2 and (best is None or elevation[y, x] > best[0]):
+                best = (float(elevation[y, x]), ei, ci)
+    if best is None:
+        return
+    _, ei, ci = best
+    e = edges.pop(ei)
+    x, y = e.cells[ci]
+    nodes.append(Node(x, y, "SUMMIT", mountain["peak"], spot=True))
+    k = len(nodes) - 1
+    edges += [Edge(e.a, k, e.cells[:ci + 1]), Edge(k, e.b, e.cells[ci:])]
 
 
 def add_high_points(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, wanted: int = 2) -> None:
@@ -640,12 +712,16 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
     spots = [s for path in spot_files for s in read_spots(path, center, crs, encoding, name_field, type_field)]
     snapped = snap_spots(lines, spots)
     nodes, edges = build_graph(lines, snapped)
+    bridged = bridge_gaps(nodes, edges)
     finish_nodes(nodes, edges, elevation, mountain)
+    summit_on_trail(nodes, edges, elevation, mountain)
     add_high_points(nodes, edges, elevation)
     if not any(n.type in ("PARKING", "SHELTER") for n in nodes):
         raise ValueError("대피 목적지(주차장·대피소·지도 경계)를 하나도 찾지 못함")
 
-    source = "산림청 등산로 " + ", ".join(p.name for p in line_files + spot_files)
+    is_osm = any(p.stem.startswith("osm_") for p in line_files)        # overture_trails.py 가 만든 파일
+    provider = "OpenStreetMap (© OpenStreetMap contributors, ODbL)" if is_osm else "산림청"
+    source = f"{provider} 등산로 " + ", ".join(p.name for p in line_files + spot_files)
     write_trails_file(folder / "trails.txt", nodes, edges, source)
     hikers = write_hikers_file(folder / "hikers.txt", nodes, elevation)
     length_km = sum(len(e.cells) for e in edges) * mb.CELL_SIZE_M / 1000.0
@@ -654,7 +730,8 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
     info["ignition"] = list(ignition_near_trails(tuple(info["ignition"]), nodes, folder))
     info["trail_source"] = {"files": [p.name for p in line_files + spot_files], "imported": str(date.today()),
                             "nodes": len(nodes), "edges": len(edges), "length_km": round(length_km, 1),
-                            "spots_used": sum(1 for n in nodes if n.spot), "hikers": hikers}
+                            "spots_used": sum(1 for n in nodes if n.spot), "hikers": hikers, "gaps_bridged": bridged,
+                            "provider": provider}
     mb.write_info(mountain_id, info)
     mb.write_scenario(mountain, tuple(info["ignition"]))
     return info["trail_source"]

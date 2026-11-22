@@ -386,7 +386,8 @@ def data_status_text(scenario_path: Path) -> str:
     else:
         fuel = f"산림청 임상도 {forest['covered_pct']:g}% + 나머지 [임시] 규칙"
     trails = info.get("trail_source")
-    trail = (f"산림청 등산로 {trails['length_km']} km, 등산객 {trails['hikers']}팀" if trails
+    provider = "OpenStreetMap" if trails and "OpenStreetMap" in trails.get("provider", "") else "산림청"
+    trail = (f"{provider} 등산로 {trails['length_km']} km, 등산객 {trails['hikers']}팀" if trails
              else "없음 (산림청 등산로 반영 전, 대피 안내 계산 안 함)")
     return f"지형: 실제 지형(SRTM 기반 30 m) · 연료: {fuel} · 등산로: {trail}"
 

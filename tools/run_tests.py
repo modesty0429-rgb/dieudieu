@@ -232,6 +232,16 @@ def test_real_mountains(tmp: Path) -> None:
     fuel = mb.rule_based_fuel(cone)
     check("[임시] 사면 규칙: 남향 침엽수·북향 활엽수", fuel[220, 150] == mb.FUEL_CONIFER and fuel[80, 150] == mb.FUEL_BROADLEAF)
 
+    import struct
+    from services.forest_import import Edge, Node, bridge_gaps
+    from services.overture_trails import wkb_lines
+    line = struct.pack("<BII", 1, 2, 2) + struct.pack("<4d", 126.5, 33.3, 126.6, 33.4)
+    multi = struct.pack("<BII", 1, 5, 2) + line + line
+    check("OSM 선 좌표(WKB) 읽기", wkb_lines(line) == [[(126.5, 33.3), (126.6, 33.4)]] and len(wkb_lines(multi)) == 2)
+    nodes = [Node(0, 0), Node(10, 0), Node(15, 0), Node(30, 0)]
+    edges = [Edge(0, 1, [(0, 0), (10, 0)]), Edge(2, 3, [(15, 0), (30, 0)])]
+    check("등산로 빈틈 잇기 (5칸 → 이음)", bridge_gaps(nodes, edges) == 1 and len(edges) == 3)
+
     try:
         import shapefile  # noqa: F401
         import pyproj  # noqa: F401

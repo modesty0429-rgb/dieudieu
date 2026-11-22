@@ -70,12 +70,14 @@
       "PMNTN_오대산_447102201.shp",
       "PMNTN_SPOT_오대산_447102201.shp"
     ],
-    "imported": "2026-11-21",
+    "imported": "2026-11-22",
     "nodes": 4,
     "edges": 3,
     "length_km": 4.2,
     "spots_used": 4,
-    "hikers": 2
+    "hikers": 2,
+    "gaps_bridged": 0,
+    "provider": "산림청"
   },
   "ignition": [
     70,

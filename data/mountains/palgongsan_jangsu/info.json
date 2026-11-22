@@ -71,12 +71,14 @@
       "PMNTN_팔공산_457403001.shp",
       "PMNTN_SPOT_팔공산_457403001.shp"
     ],
-    "imported": "2026-11-21",
+    "imported": "2026-11-22",
     "nodes": 5,
     "edges": 4,
     "length_km": 8.6,
     "spots_used": 5,
-    "hikers": 2
+    "hikers": 2,
+    "gaps_bridged": 0,
+    "provider": "산림청"
   },
   "ignition": [
     82,

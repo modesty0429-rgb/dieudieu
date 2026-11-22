@@ -7,3 +7,4 @@ requests>=2.31     # 기상청 API 호출 (6단계부터)
 pyshp>=2.3        # (선택) 산림청 SHP 변환 — forest_import.py 를 쓸 때만
 pyproj>=3.6       # (선택) 좌표계 변환 — forest_import.py
 pillow>=10.0      # 실제 산 지형 타일 읽기·임상도 다각형 칠하기
+pyarrow>=15       # (선택) OpenStreetMap 등산로 받기 — overture_trails.py 를 쓸 때만

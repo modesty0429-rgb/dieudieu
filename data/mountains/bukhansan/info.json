@@ -70,12 +70,14 @@
       "PMNTN_북한산_114100801.shp",
       "PMNTN_SPOT_북한산_114100801.shp"
     ],
-    "imported": "2026-11-21",
+    "imported": "2026-11-22",
     "nodes": 64,
     "edges": 73,
     "length_km": 12.5,
     "spots_used": 64,
-    "hikers": 5
+    "hikers": 5,
+    "gaps_bridged": 0,
+    "provider": "산림청"
   },
   "ignition": [
     81,
