@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9135 | 약 8,000 | 114% |
-| Python | 6003 | 약 4,000 | 150% |
-| **합계** | **15138** | **약 12,000** | **126%** |
+| Python | 6030 | 약 4,000 | 151% |
+| **합계** | **15165** | **약 12,000** | **126%** |
 
 ## C
 
@@ -72,7 +72,7 @@
 | `gui/services/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/services/app_config.py` | 62 | 31 | 16 | 15 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/forest_import.py` | 920 | 677 | 115 | 128 |
+| `gui/services/forest_import.py` | 946 | 692 | 118 | 136 |
 | `gui/services/map_render.py` | 110 | 60 | 30 | 20 |
 | `gui/services/mountain_builder.py` | 424 | 245 | 108 | 71 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
@@ -95,5 +95,5 @@
 | `gui/views/weather_dialog.py` | 163 | 133 | 10 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
-| `tools/run_tests.py` | 313 | 232 | 34 | 47 |
-| **합계** | **6003** | **4262** | **842** | **899** |
+| `tools/run_tests.py` | 314 | 233 | 34 | 47 |
+| **합계** | **6030** | **4278** | **845** | **907** |

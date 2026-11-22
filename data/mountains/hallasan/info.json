@@ -1,5 +1,30 @@
 {
-  "forest_source": null,
+  "forest_source": {
+    "files": [
+      "33611033.shp",
+      "33611034.shp",
+      "33611035.shp",
+      "33611036.shp",
+      "33611037.shp"
+    ],
+    "field": "FRTP_CD",
+    "imported": "2026-11-22",
+    "covered_pct": 4.7,
+    "cells_by_code": {
+      "0/제지": 5,
+      "1": 336,
+      "2": 3741,
+      "3": 973
+    },
+    "outside_forest_cells": 7,
+    "painted_fuel_cells": {
+      "fuel_3": 151,
+      "fuel_4": 3123,
+      "fuel_5": 914,
+      "fuel_9": 5
+    },
+    "unknown_codes": []
+  },
   "id": "hallasan",
   "name": "한라산",
   "peak": "백록담",

@@ -276,7 +276,8 @@ def mountain_sandbox_import(tmp: Path) -> None:
               fuel[100, 200] == 3 and fuel[100, 100] == 4 and fuel[230, 120] == 5 and fuel[216, 83] == 1
               and fuel[180, 200] == 2 and fuel[260, 260] == rule[260, 260], str(forest))
         from services.forest_import import sheet_number
-        check("1:5,000 도엽 번호 계산", sheet_number(37.09, 128.69) == "37815068" and sheet_number(37.09, 128.76) == "37816061")
+        check("1:5,000 도엽 번호 계산 (육지·제주)", sheet_number(37.09, 128.69) == "37815068" and sheet_number(37.09, 128.76) == "37816061"
+              and sheet_number(33.3375, 126.654) == "33611030")      # 제주는 기준점이 다름
         scenario = root / "scenarios" / "mountain_bukhansan.ini"
         code, out = run_engine(scenario, "evac", tmp / "sandbox_out")
         check("변환한 데이터로 엔진 대피 계산", code == 0 and "등산객 읽기 완료: 5팀" in out, out[-300:])

@@ -76,6 +76,8 @@ def open_shapefile(path: Path, encoding: str | None = None):
     """SHP 열기. 인코딩을 지정하지 않으면 cp949(산림청 자료 대부분) → utf-8 순서로 시도"""
     import shapefile
 
+    if not Path(path).with_suffix(".shp").exists():
+        raise FileNotFoundError(f"{Path(path).name}: 파일이 없음")
     for enc in ([encoding] if encoding else ["cp949", "utf-8"]):
         try:
             reader = shapefile.Reader(str(path), encoding=enc)
@@ -712,6 +714,15 @@ def rasterize_polygon(rings: list[np.ndarray]) -> tuple[np.ndarray, int, int] | 
     return mask, x0, y0
 
 
+# 제주도 1:5,000 도엽은 육지 도엽 격자보다 위도 6′(0.1°), 경도 5′ 남서쪽으로 밀려 있다.
+# [근거: 받은 제주 도엽 70여 장의 실제 범위가 모두 이만큼 차이남 (예: 33611030 = 위도 33.325~33.350°, 경도 126.642~126.667°)]
+JEJU_SHIFT = (0.1, 5.0 / 60.0)
+
+
+def is_jeju(lat: float, lon: float) -> bool:
+    return lat < 34.0 and 126.0 <= lon < 127.0
+
+
 def sheet_number(lat: float, lon: float) -> str:
     """
     위경도가 들어가는 1:5,000 지도(임상도) 도엽 번호 (8자리, 예: 37815068)
@@ -721,6 +732,8 @@ def sheet_number(lat: float, lon: float) -> str:
     (받은 도엽 37815068 이 위도 37.075~37.100°, 경도 128.675~128.700° 인 것으로 확인)
     """
     eps = 1e-9
+    if is_jeju(lat, lon):                     # 제주 도엽은 기준점이 남서쪽으로 (6′, 5′) 밀려 있음
+        lat, lon = lat + JEJU_SHIFT[0], lon + JEJU_SHIFT[1]
     lat_deg, lon_deg = int(lat), int(lon)
     row50 = min(int((lat_deg + 1 - lat + eps) / 0.25), 3)
     col50 = min(int((lon - lon_deg + eps) / 0.25), 3)
@@ -741,6 +754,8 @@ def sheet_bounds(number: str) -> tuple[float, float, float, float] | None:
         return None
     north = lat_deg + 1 - ((n50 - 1) // 4) * 0.25 - ((n5 - 1) // 10) * 0.025
     west = lon_deg + ((n50 - 1) % 4) * 0.25 + ((n5 - 1) % 10) * 0.025
+    if lat_deg == 33 and lon_deg == 126:      # 제주 도엽 (sheet_number 참고)
+        north, west = north - JEJU_SHIFT[0], west - JEJU_SHIFT[1]
     return north - 0.025, north, west, west + 0.025
 
 
