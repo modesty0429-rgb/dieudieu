@@ -855,7 +855,13 @@ def sheets_for_mountain(mountain_id: str) -> list[str]:
 
 
 def shapefile_overlaps(path: Path, center, crs: str | None, encoding: str | None) -> bool:
-    """SHP 전체 범위가 이 산의 9 km 지도와 겹치는가 (빠른 검사)"""
+    """
+    SHP 가 이 산의 9 km 지도와 겹치는가 (빠른 검사).
+    파일 이름이 도엽 번호이면 도엽 범위로 판단한다 (지도에 걸친 부분에 다각형이 없는 도엽도 '산림 밖'으로 칠해야 하므로)
+    """
+    mask = sheet_mask(path, center)
+    if mask is not None:
+        return bool(mask.any())
     reader = open_shapefile(path, encoding)
     transformer, _ = make_transformer(path, crs)
     x0, y0, x1, y1 = reader.bbox

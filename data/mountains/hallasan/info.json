@@ -1,7 +1,11 @@
 {
   "forest_source": {
     "files": [
+      "33607093.shp",
       "33607094.shp",
+      "33607095.shp",
+      "33607096.shp",
+      "33607097.shp",
       "33611003.shp",
       "33611004.shp",
       "33611005.shp",
@@ -26,7 +30,7 @@
     "local_fuel_map": true,
     "field": "FRTP_CD",
     "imported": "2026-11-22",
-    "covered_pct": 98.1,
+    "covered_pct": 100.0,
     "cells_by_code": {
       "0/관목덤불": 175,
       "0/묘지": 14,
@@ -34,15 +38,15 @@
       "0/암석지": 428,
       "0/제지": 10660,
       "1": 21857,
-      "2": 57374,
+      "2": 58103,
       "3": 15940
     },
-    "outside_forest_cells": 759,
+    "outside_forest_cells": 1855,
     "painted_fuel_cells": {
       "fuel_1": 27,
       "fuel_2": 10246,
       "fuel_3": 14720,
-      "fuel_4": 47353,
+      "fuel_4": 47969,
       "fuel_5": 14755,
       "fuel_9": 428
     },

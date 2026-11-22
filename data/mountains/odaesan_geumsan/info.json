@@ -22,6 +22,7 @@
       "36714065.shp",
       "36714066.shp"
     ],
+    "local_fuel_map": false,
     "field": "FRTP_CD",
     "imported": "2026-11-22",
     "covered_pct": 100.0,
