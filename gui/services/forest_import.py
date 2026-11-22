@@ -163,7 +163,8 @@ class TrailLine:
     cut_end: bool = False
 
 
-def densify_cells(part: np.ndarray) -> list[tuple[int, int] | None]:
+def densify_cells(part: np.ndarray, width: int = mb.GRID_SIZE,
+                  height: int = mb.GRID_SIZE) -> list[tuple[int, int] | None]:
     """선을 반 칸 간격으로 따라가며 지나는 칸 목록. 지도 밖은 None"""
     cells: list[tuple[int, int] | None] = []
     for (x0, y0), (x1, y1) in zip(part[:-1], part[1:]):
@@ -171,7 +172,7 @@ def densify_cells(part: np.ndarray) -> list[tuple[int, int] | None]:
         for s in range(steps + 1):
             t = s / steps
             x, y = int(round(x0 + (x1 - x0) * t)), int(round(y0 + (y1 - y0) * t))
-            cell = (x, y) if 0 <= x < mb.GRID_SIZE and 0 <= y < mb.GRID_SIZE else None
+            cell = (x, y) if 0 <= x < width and 0 <= y < height else None
             if not cells or cells[-1] != cell:
                 cells.append(cell)
     return cells
@@ -202,7 +203,7 @@ def read_trail_lines(path: Path, center, crs: str | None, encoding: str | None) 
     lines: list[TrailLine] = []
     for shape in reader.shapes():
         for part in shape_parts_grid(shape, transformer, center):
-            lines.extend(split_inside_runs(densify_cells(part)))
+            lines.extend(split_inside_runs(densify_cells(part, *mb.grid_shape(center))))
     return lines
 
 
@@ -445,9 +446,8 @@ def edge_waypoints(edge: Edge) -> list[tuple[int, int]]:
 # ----------------------------------------------------------------------
 # 등산로: 노드 이름·종류 마무리
 # ----------------------------------------------------------------------
-def boundary_side(node: Node) -> str:
-    size = mb.GRID_SIZE - 1
-    distances = {"북": node.y, "남": size - node.y, "서": node.x, "동": size - node.x}
+def boundary_side(node: Node, width: int = mb.GRID_SIZE, height: int = mb.GRID_SIZE) -> str:
+    distances = {"북": node.y, "남": height - 1 - node.y, "서": node.x, "동": width - 1 - node.x}
     return min(distances, key=distances.get)
 
 
@@ -479,7 +479,7 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
             continue
         trailhead = node.spot                          # 산림청 '시종점' 지점
         if node.cut:
-            node.type, base = "PARKING", f"지도경계{boundary_side(node)}"
+            node.type, base = "PARKING", f"지도경계{boundary_side(node, elevation.shape[1], elevation.shape[0])}"
         elif degree[i] == 1 and (trailhead or node_elev[i] <= low_line):
             node.type, base = "PARKING", "들머리"
         elif degree[i] == 1:
@@ -697,7 +697,7 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
     line_files, spot_files = as_path_list(lines_path), as_path_list(spots_path)
     mountain = mb.find_mountain(mountain_id)
     folder = mb.mountain_folder(mountain_id)
-    center = tuple(mountain["center"])
+    center = mb.grid_spec(mountain)
     elevation = read_asc(folder / "elev.asc")[1]
 
     lines: list[TrailLine] = []
@@ -767,7 +767,8 @@ def normalize_code(value) -> str:
         return text
 
 
-def rasterize_polygon(rings: list[np.ndarray]) -> tuple[np.ndarray, int, int] | None:
+def rasterize_polygon(rings: list[np.ndarray], grid_width: int = mb.GRID_SIZE,
+                      grid_height: int = mb.GRID_SIZE) -> tuple[np.ndarray, int, int] | None:
     """
     다각형(바깥 고리 + 구멍)을 격자에 칠한 마스크. 칸 중심이 다각형 안이면 칠한다.
     짝홀 규칙을 쓰므로 구멍 고리는 자동으로 빠진다. (마스크, 왼쪽 x, 위쪽 y) 또는 지도 밖이면 None
@@ -777,8 +778,8 @@ def rasterize_polygon(rings: list[np.ndarray]) -> tuple[np.ndarray, int, int] | 
     allpts = np.vstack(rings)
     x0 = max(int(np.floor(allpts[:, 0].min())), 0)
     y0 = max(int(np.floor(allpts[:, 1].min())), 0)
-    x1 = min(int(np.ceil(allpts[:, 0].max())), mb.GRID_SIZE - 1)
-    y1 = min(int(np.ceil(allpts[:, 1].max())), mb.GRID_SIZE - 1)
+    x1 = min(int(np.ceil(allpts[:, 0].max())), grid_width - 1)
+    y1 = min(int(np.ceil(allpts[:, 1].max())), grid_height - 1)
     if x0 > x1 or y0 > y1:
         return None
     width, height = x1 - x0 + 1, y1 - y0 + 1
@@ -849,9 +850,11 @@ def sheet_mask(path: Path, center) -> np.ndarray | None:
 def sheets_for_mountain(mountain_id: str) -> list[str]:
     """이 산의 9 km 지도를 모두 덮는 1:5,000 임상도 도엽 번호 목록"""
     mountain = mb.find_mountain(mountain_id)
-    lat, lon = mb.grid_cell_latlon(tuple(mountain["center"]))
-    picks = list(range(0, mb.GRID_SIZE, 10)) + [mb.GRID_SIZE - 1]
-    return sorted({sheet_number(float(lat[y, x]), float(lon[y, x])) for y in picks for x in picks})
+    lat, lon = mb.grid_cell_latlon(mb.grid_spec(mountain))
+    height, width = lat.shape
+    xs = list(range(0, width, 10)) + [width - 1]
+    ys = list(range(0, height, 10)) + [height - 1]
+    return sorted({sheet_number(float(lat[y, x]), float(lon[y, x])) for y in ys for x in xs})
 
 
 def shapefile_overlaps(path: Path, center, crs: str | None, encoding: str | None) -> bool:
@@ -867,7 +870,8 @@ def shapefile_overlaps(path: Path, center, crs: str | None, encoding: str | None
     x0, y0, x1, y1 = reader.bbox
     lon, lat = transformer.transform([x0, x1, x0, x1], [y0, y0, y1, y1])
     gx, gy = mb.latlon_to_grid(np.asarray(lat), np.asarray(lon), center)
-    return gx.max() >= 0 and gx.min() <= mb.GRID_SIZE - 1 and gy.max() >= 0 and gy.min() <= mb.GRID_SIZE - 1
+    width, height = mb.grid_shape(center)
+    return gx.max() >= 0 and gx.min() <= width - 1 and gy.max() >= 0 and gy.min() <= height - 1
 
 
 def paint_forest_file(path: Path, center, fuel: np.ndarray, covered: np.ndarray, mapping: dict[str, int],
@@ -892,7 +896,7 @@ def paint_forest_file(path: Path, center, fuel: np.ndarray, covered: np.ndarray,
                 code = f"{code}/{detail}"
                 break
         rings = shape_parts_grid(shape_rec.shape, transformer, center)
-        result = rasterize_polygon(rings) if rings else None
+        result = rasterize_polygon(rings, *mb.grid_shape(center)) if rings else None
         if result is None:
             continue
         mask, x0, y0 = result
@@ -914,7 +918,7 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
     """
     mountain = mb.find_mountain(mountain_id)
     folder = mb.mountain_folder(mountain_id)
-    center = tuple(mountain["center"])
+    center = mb.grid_spec(mountain)
     files = [p for p in as_path_list(shp_paths) if shapefile_overlaps(p, center, crs, encoding)]
     if not files:
         raise ValueError(f"넣은 임상도 파일 중 {mountain['name']} 지도와 겹치는 것이 없음 "

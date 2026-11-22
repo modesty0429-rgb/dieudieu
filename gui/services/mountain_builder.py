@@ -67,10 +67,36 @@ def find_mountain(mountain_id: str) -> dict:
     raise KeyError(f"mountains.json 에 없는 산: {mountain_id}")
 
 
+class GridSpec(tuple):
+    """
+    지도 격자 정보: (가운데 위도, 가운데 경도) 튜플이면서 가로·세로 칸 수(width, height)를 함께 가진다.
+    대부분 300×300칸이지만, 산 모양에 맞춰 크기를 줄인 산(예: 북한산)도 있다. (mountains.json 의 "size")
+    """
+    def __new__(cls, lat: float, lon: float, width: int = GRID_SIZE, height: int = GRID_SIZE):
+        spec = super().__new__(cls, (lat, lon))
+        spec.width, spec.height = int(width), int(height)
+        return spec
+
+
+def grid_spec(mountain: dict) -> GridSpec:
+    """산의 지도 격자 (가운데 위치 + 크기)"""
+    width, height = mountain.get("size") or (GRID_SIZE, GRID_SIZE)
+    return GridSpec(mountain["center"][0], mountain["center"][1], width, height)
+
+
+def grid_shape(center, size=None) -> tuple[int, int]:
+    """(가로, 세로) 칸 수. size 를 주면 그것(정수면 정사각형), 아니면 center 가 GridSpec 이면 그 크기"""
+    if size is not None:
+        return (size, size) if isinstance(size, int) else (int(size[0]), int(size[1]))
+    if isinstance(center, GridSpec):
+        return center.width, center.height
+    return GRID_SIZE, GRID_SIZE
+
+
 def summit_grid(mountain: dict) -> tuple[int, int]:
     """정상의 격자 좌표. 보통 지도 가운데지만, 등산로 자료에 맞춰 지도를 옮긴 산은 'summit' 위치"""
     lat, lon = mountain.get("summit") or mountain["center"]
-    x, y = latlon_to_grid(np.array([lat]), np.array([lon]), tuple(mountain["center"]))
+    x, y = latlon_to_grid(np.array([lat]), np.array([lon]), grid_spec(mountain))
     return int(round(float(x[0]))), int(round(float(y[0])))
 
 
@@ -81,30 +107,30 @@ def mountain_folder(mountain_id: str) -> Path:
 # ----------------------------------------------------------------------
 # 격자 ↔ 위경도
 # ----------------------------------------------------------------------
-def grid_cell_latlon(center: tuple[float, float], size: int = GRID_SIZE,
-                     cell: float = CELL_SIZE_M) -> tuple[np.ndarray, np.ndarray]:
+def grid_cell_latlon(center, size=None, cell: float = CELL_SIZE_M) -> tuple[np.ndarray, np.ndarray]:
     """
     격자 각 셀 중심의 (위도, 경도) 배열 [y, x]. y = 0 이 북쪽.
-    9 km 정도의 좁은 지역이므로 정상 위치를 기준으로 한 등장방형(위경도를 m 로 바꾸는 간단한) 근사를 쓴다.
+    9 km 정도의 좁은 지역이므로 지도 가운데를 기준으로 한 등장방형(위경도를 m 로 바꾸는 간단한) 근사를 쓴다.
     (9 km 범위에서 거리 오차는 0.1% 미만)
     """
-    lat0, lon0 = center
-    offsets = (np.arange(size) - (size - 1) / 2.0) * cell        # 가운데 기준 거리 (m)
-    north = -offsets[:, None] * np.ones((1, size))              # y 가 커질수록 남쪽
-    east = np.ones((size, 1)) * offsets[None, :]
-    lat = lat0 + np.degrees(north / EARTH_RADIUS_M)
-    lon = lon0 + np.degrees(east / (EARTH_RADIUS_M * math.cos(math.radians(lat0))))
+    lat0, lon0 = center[0], center[1]
+    width, height = grid_shape(center, size)
+    east = (np.arange(width) - (width - 1) / 2.0) * cell            # 가운데 기준 거리 (m)
+    north = -(np.arange(height) - (height - 1) / 2.0) * cell       # y 가 커질수록 남쪽
+    lat = lat0 + np.degrees(north[:, None] / EARTH_RADIUS_M) * np.ones((1, width))
+    lon = lon0 + np.degrees(east[None, :] / (EARTH_RADIUS_M * math.cos(math.radians(lat0)))) * np.ones((height, 1))
     return lat, lon
 
 
-def latlon_to_grid(lat: np.ndarray, lon: np.ndarray, center: tuple[float, float],
-                   size: int = GRID_SIZE, cell: float = CELL_SIZE_M) -> tuple[np.ndarray, np.ndarray]:
+def latlon_to_grid(lat: np.ndarray, lon: np.ndarray, center, size=None,
+                   cell: float = CELL_SIZE_M) -> tuple[np.ndarray, np.ndarray]:
     """위경도 → 격자 좌표 (실수, 셀 중심 = 정수). grid_cell_latlon 의 반대"""
-    lat0, lon0 = center
+    lat0, lon0 = center[0], center[1]
+    width, height = grid_shape(center, size)
     north = np.radians(np.asarray(lat) - lat0) * EARTH_RADIUS_M
     east = np.radians(np.asarray(lon) - lon0) * EARTH_RADIUS_M * math.cos(math.radians(lat0))
-    x = east / cell + (size - 1) / 2.0
-    y = -north / cell + (size - 1) / 2.0
+    x = east / cell + (width - 1) / 2.0
+    y = -north / cell + (height - 1) / 2.0
     return x, y
 
 
@@ -139,7 +165,7 @@ def load_tile(zoom: int, tx: int, ty: int) -> np.ndarray:
     return rgb[..., 0] * 256.0 + rgb[..., 1] + rgb[..., 2] / 256.0 - 32768.0
 
 
-def fetch_dem(center: tuple[float, float], size: int = GRID_SIZE, cell: float = CELL_SIZE_M,
+def fetch_dem(center, size=None, cell: float = CELL_SIZE_M,
               zoom: int = TILE_ZOOM) -> np.ndarray:
     """정상을 가운데로 하는 격자의 고도(m) [y, x] — 필요한 타일을 이어 붙여 양선형 보간"""
     lat, lon = grid_cell_latlon(center, size, cell)
@@ -225,9 +251,9 @@ def default_ignition(elevation: np.ndarray, fuel: np.ndarray, summit: tuple[int,
     기본 발화 지점: 정상에서 남서쪽으로 약 2.4 km 떨어진, 탈 수 있는 셀 중 가장 가까운 곳.
     (봄철 서풍·남서풍이 산 위쪽으로 불을 밀어 올리는 상황을 보여 주기 위함 [가정])
     """
-    size = elevation.shape[0]
-    cx, cy = summit if summit else ((size - 1) // 2, (size - 1) // 2)
-    target_x, target_y = min(max(cx - 57, 10), size - 11), min(max(cy + 57, 10), size - 11)
+    height, width = elevation.shape
+    cx, cy = summit if summit else ((width - 1) // 2, (height - 1) // 2)
+    target_x, target_y = min(max(cx - 57, 10), width - 11), min(max(cy + 57, 10), height - 11)
     ys, xs = np.where(np.isin(fuel, burnable))
     index = int(np.argmin((xs - target_x) ** 2 + (ys - target_y) ** 2))
     return int(xs[index]), int(ys[index])
@@ -325,7 +351,7 @@ def build_mountain(mountain_id: str, keep_fuel: bool = True) -> dict:
     mountain = find_mountain(mountain_id)
     folder = mountain_folder(mountain_id)
     folder.mkdir(parents=True, exist_ok=True)
-    center = tuple(mountain["center"])
+    center = grid_spec(mountain)
 
     elevation = fetch_dem(center)
     write_asc(folder / "elev.asc", elevation, CELL_SIZE_M, "{:.1f}")
@@ -342,7 +368,7 @@ def build_mountain(mountain_id: str, keep_fuel: bool = True) -> dict:
     info.update({
         "id": mountain_id, "name": mountain["name"], "peak": mountain["peak"], "center": list(center),
         "summit_xy": list(summit_grid(mountain)), "note": mountain.get("note", ""),
-        "grid_size": GRID_SIZE, "cell_size_m": CELL_SIZE_M, "dem_source": DEM_SOURCE,
+        "grid_size": list(grid_shape(center)), "cell_size_m": CELL_SIZE_M, "dem_source": DEM_SOURCE,
         "elevation_range_m": [round(float(elevation.min()), 1), round(float(elevation.max()), 1)],
     })
     info.setdefault("trail_source", None)

@@ -59,7 +59,7 @@ def latest_release(s3) -> str:
 
 def map_bounds(mountain: dict, margin_deg: float = 0.005) -> tuple[float, float, float, float]:
     """산 지도의 (서, 동, 남, 북) 경계 + 약간의 여유"""
-    lat, lon = mb.grid_cell_latlon(tuple(mountain["center"]))
+    lat, lon = mb.grid_cell_latlon(mb.grid_spec(mountain))
     return (float(lon.min()) - margin_deg, float(lon.max()) + margin_deg,
             float(lat.min()) - margin_deg, float(lat.max()) + margin_deg)
 

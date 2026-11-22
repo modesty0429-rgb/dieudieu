@@ -459,7 +459,7 @@ def test_real_mountains(tmp: Path) -> None:
 
 
 def mountain_sandbox_import(tmp: Path) -> None:
-    """시험용 SHP(EPSG:5186, cp949)를 만들어 임시 폴더의 북한산 데이터에 반영하고 엔진으로 실행"""
+    """시험용 SHP(EPSG:5186, cp949)를 만들어 임시 폴더의 설악산(300×300칸) 데이터에 반영하고 엔진으로 실행"""
     from services import forest_import as fi
     from services import mountain_builder as mb
     from services.result_loader import read_asc
@@ -470,7 +470,7 @@ def mountain_sandbox_import(tmp: Path) -> None:
     (root / "scenarios").mkdir()
     shutil.copy(SCENARIOS / "fuel_models.csv", root / "scenarios")
     shp = tmp / "shp"
-    done = subprocess.run([sys.executable, str(PROJECT_ROOT / "tools" / "make_test_shp.py"), "--out", str(shp)],
+    done = subprocess.run([sys.executable, str(PROJECT_ROOT / "tools" / "make_test_shp.py"), "--id", "seoraksan", "--out", str(shp)],
                           capture_output=True, text=True, encoding="utf-8", errors="replace")
     if not check("시험용 SHP 만들기", done.returncode == 0, done.stderr[-300:]):
         return
@@ -479,24 +479,24 @@ def mountain_sandbox_import(tmp: Path) -> None:
     mb.MOUNTAIN_DIR, mb.REGISTRY_FILE = root / "mountains", root / "mountains" / "mountains.json"
     app_config.SCENARIO_DIR = root / "scenarios"
     try:
-        trails = fi.import_trails("bukhansan", shp / "test_trails.shp", shp / "test_spots.shp")
-        text = (root / "mountains" / "bukhansan" / "trails.txt").read_text(encoding="utf-8")
+        trails = fi.import_trails("seoraksan", shp / "test_trails.shp", shp / "test_spots.shp")
+        text = (root / "mountains" / "seoraksan" / "trails.txt").read_text(encoding="utf-8")
         check("등산로 변환: 노드·간선·지점 이름", trails["nodes"] >= 8 and trails["edges"] >= 8
               and "SUMMIT   149 149 백운대" in text and "SHELTER" in text and "지도경계동" in text, text[:400])
         check("등산로 변환: 길에서 먼 지점은 붙이지 않음", "길에서먼쉼터" not in text)
-        forest = fi.import_forest("bukhansan", shp / "test_forest.shp",
+        forest = fi.import_forest("seoraksan", shp / "test_forest.shp",
                                   fuel_map_path=root / "mountains" / "forest_fuel_map.csv")
-        fuel = read_asc(root / "mountains" / "bukhansan" / "fuel.asc")[1]
-        rule = mb.rule_based_fuel(read_asc(root / "mountains" / "bukhansan" / "elev.asc")[1])
+        fuel = read_asc(root / "mountains" / "seoraksan" / "fuel.asc")[1]
+        rule = mb.rule_based_fuel(read_asc(root / "mountains" / "seoraksan" / "elev.asc")[1])
         check("임상도 변환: 임종 코드 → 연료 코드, 구멍, 덮지 않은 곳은 [임시] 규칙",
               fuel[100, 200] == 3 and fuel[100, 100] == 4 and fuel[230, 120] == 5 and fuel[216, 83] == 1
               and fuel[180, 200] == 2 and fuel[260, 260] == rule[260, 260], str(forest))
         from services.forest_import import sheet_number
         check("1:5,000 도엽 번호 계산 (육지·제주)", sheet_number(37.09, 128.69) == "37815068" and sheet_number(37.09, 128.76) == "37816061"
               and sheet_number(33.3375, 126.654) == "33611030")      # 제주는 기준점이 다름
-        scenario = root / "scenarios" / "mountain_bukhansan.ini"
+        scenario = root / "scenarios" / "mountain_seoraksan.ini"
         code, out = run_engine(scenario, "evac", tmp / "sandbox_out")
-        check("변환한 데이터로 엔진 대피 계산", code == 0 and "등산객 읽기 완료: 5팀" in out, out[-300:])
+        check("변환한 데이터로 엔진 대피 계산", code == 0 and "등산객 읽기 완료" in out and "[ERROR]" not in out, out[-300:])
     finally:
         mb.MOUNTAIN_DIR, mb.REGISTRY_FILE, app_config.SCENARIO_DIR = saved
 

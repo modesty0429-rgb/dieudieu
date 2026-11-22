@@ -157,8 +157,12 @@ class MapView(QWidget):
     # ------------------------------------------------------------------
     # 데이터 설정
     # ------------------------------------------------------------------
-    def set_map(self, map_data: MapData) -> None:
-        """새 지도를 그린다. (결과는 지움)"""
+    def set_map(self, map_data: MapData, keep_view: bool = False) -> None:
+        """
+        새 지도를 그린다. (결과는 지움)
+        keep_view: 같은 크기의 지도면 지금 확대·이동 상태를 그대로 둔다 (등산객 위치를 찍을 때 등)
+        """
+        same_size = self.map is not None and self.map.elevation.shape == map_data.elevation.shape
         self.map = map_data
         self.result = None
         self.time = 0.0
@@ -173,7 +177,8 @@ class MapView(QWidget):
         self.night_item.clear()
         self.glow_item.clear()
         self.status_label.setText("")
-        self.plot.setRange(xRange=(0, map_data.width), yRange=(0, map_data.height), padding=0.02)
+        if not (keep_view and same_size):
+            self.plot.setRange(xRange=(0, map_data.width), yRange=(0, map_data.height), padding=0.02)
 
     def set_result(self, result: SimulationResult) -> None:
         """시뮬레이션 결과를 붙인다. 지도가 다르면 지도부터 다시 그린다."""

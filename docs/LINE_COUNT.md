@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9899 | 약 8,000 | 124% |
-| Python | 7964 | 약 4,000 | 199% |
-| **합계** | **17863** | **약 12,000** | **149%** |
+| Python | 7999 | 약 4,000 | 200% |
+| **합계** | **17898** | **약 12,000** | **149%** |
 
 ## C
 
@@ -77,10 +77,10 @@
 | `gui/services/app_config.py` | 62 | 31 | 16 | 15 |
 | `gui/services/daylight_render.py` | 92 | 54 | 21 | 17 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/forest_import.py` | 1034 | 759 | 131 | 144 |
+| `gui/services/forest_import.py` | 1038 | 763 | 131 | 144 |
 | `gui/services/hiker_setup.py` | 230 | 151 | 40 | 39 |
 | `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
-| `gui/services/mountain_builder.py` | 425 | 246 | 108 | 71 |
+| `gui/services/mountain_builder.py` | 451 | 260 | 114 | 77 |
 | `gui/services/overture_trails.py` | 195 | 130 | 28 | 37 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
 | `gui/services/result_loader.py` | 480 | 353 | 43 | 84 |
@@ -96,7 +96,7 @@
 | `gui/views/hiker_group.py` | 239 | 175 | 28 | 36 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
 | `gui/views/main_window.py` | 327 | 254 | 34 | 39 |
-| `gui/views/map_view.py` | 509 | 403 | 53 | 53 |
+| `gui/views/map_view.py` | 514 | 405 | 56 | 53 |
 | `gui/views/playback_bar.py` | 124 | 90 | 10 | 24 |
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
 | `gui/views/scenario_panel.py` | 454 | 367 | 39 | 48 |
@@ -106,4 +106,4 @@
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
 | `tools/run_tests.py` | 589 | 460 | 54 | 75 |
-| **합계** | **7964** | **5686** | **1106** | **1172** |
+| **합계** | **7999** | **5706** | **1115** | **1178** |

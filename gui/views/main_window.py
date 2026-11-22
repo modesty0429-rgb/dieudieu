@@ -192,10 +192,10 @@ class MainWindow(QMainWindow):
         self._show_preview(preview)
         self.status_bar.show_message(f"시나리오 '{preview.name}' 지도 ({preview.width}×{preview.height}칸)")
 
-    def _show_preview(self, preview) -> None:
-        """실행 전 화면: 지도·등산로·등산객·발화 지점 (결과는 지움)"""
+    def _show_preview(self, preview, keep_view: bool = False) -> None:
+        """실행 전 화면: 지도·등산로·등산객·발화 지점 (결과는 지움). keep_view: 지도 확대 상태 유지"""
         self.result = None
-        self.map_view.set_map(preview)
+        self.map_view.set_map(preview, keep_view)
         self.evacuation_view.set_data(None, preview)
         self.suppression_view.set_data(None, None)
         self.stats_view.set_result(None)
@@ -218,7 +218,7 @@ class MainWindow(QMainWindow):
         preview = replace(self.preview, nodes=nodes, edges=edges, hikers=hikers,
                           season=current.season, snow_line_m=current.snow_line_m)
         had_result = self.result is not None
-        self._show_preview(preview)
+        self._show_preview(preview, keep_view=True)       # 팀 위치를 찍어도 확대한 지도가 그대로
         total = sum(h.people for h in hikers)
         note = " (이전 결과는 지웠습니다. 다시 실행하세요)" if had_result else ""
         self.status_bar.show_message(f"등산객 {len(hikers)}팀, {total}명{note}")
