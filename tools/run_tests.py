@@ -15,6 +15,7 @@
           등산객 팀 (10팀, 등산로 가운데 찍은 위치에서 출발)
   [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기,
            계절 지도 색
+  [과거 날씨] 가까운 관측소, 기간 검사, ASOS 응답 해석·빈 값 채우기, 저장 → 엔진 실행
   [실제 산] 산 시나리오 6개 실행, 격자↔위경도, [임시] 연료 규칙, OSM 선 좌표, 등산로 빈틈 잇기,
           시험용 산림청 SHP(등산로·임상도) 변환 → 엔진 실행 (pyshp·pyproj·pillow 가 있을 때)
 
@@ -500,6 +501,61 @@ def mountain_sandbox_import(tmp: Path) -> None:
         mb.MOUNTAIN_DIR, mb.REGISTRY_FILE, app_config.SCENARIO_DIR = saved
 
 
+def test_past_weather(tmp: Path) -> None:
+    """과거 관측(ASOS) 받기: 가짜 응답(공식 응답 형식)으로 해석·빈 값 채우기·저장·엔진 실행까지"""
+    print("\n[과거 날씨] 기상청 ASOS 시간자료")
+    import json
+    from datetime import datetime
+    from services import weather_api as w
+
+    near = w.nearest_stations(37.6584, 126.9779)
+    check("가까운 관측소 (북한산 → 서울)", near[0][0].name == "서울" and near[0][1] < 15)
+    try:
+        w.check_past_period(datetime(2026, 11, 21, 13), 10, now=datetime(2026, 11, 21, 15))
+        future_ok = False
+    except w.WeatherApiError:
+        future_ok = True
+    check("오늘 이후 기간은 거절", future_ok)
+
+    items = []
+    for h in range(10):
+        items.append({"tm": f"2025-04-05 {13 + h:02d}:00", "stnId": "108", "stnNm": "서울",
+                      "ta": f"{20 - h * 0.5:.1f}", "hm": str(20 + h), "ws": f"{5 + h * 0.2:.1f}", "wd": "270"})
+    items[3]["ta"] = ""          # 빈 값: 앞뒤로 보간
+    items[4]["wd"] = ""          # 빈 풍향: 앞 값 유지
+    body = json.dumps({"response": {"header": {"resultCode": "00", "resultMsg": "NORMAL_SERVICE"},
+                                    "body": {"dataType": "JSON", "items": {"item": items}, "totalCount": 10}}})
+    rows, name, gaps = w.parse_asos(w.extract_items(body))
+    check("ASOS 응답 해석 (빈 값 보간)", len(rows) == 10 and name == "서울" and gaps == 2
+          and abs(rows[3].temp_c - 18.5) < 1e-6 and rows[4].wind_dir_deg == 270)
+    no_data = json.dumps({"response": {"header": {"resultCode": "03", "resultMsg": "NO_DATA"}}})
+    try:
+        w.extract_items(no_data)
+        nodata_ok = False
+    except w.WeatherApiError as error:
+        nodata_ok = "자료가 없습니다" in str(error)
+    check("자료 없음(03) 안내", nodata_ok)
+
+    saved = (w.request_items, w.load_api_key)
+    w.request_items = lambda url, key, params, timeout_sec=15.0: w.extract_items(body)
+    w.load_api_key = lambda path=None: "TEST_KEY"
+    try:
+        path, rows, text = w.download_past_weather(108, datetime(2025, 4, 5, 13), 10, out_dir=tmp)
+    finally:
+        w.request_items, w.load_api_key = saved
+    ini = (SCENARIOS / "mountain_bukhansan.ini").read_text(encoding="utf-8")
+    ini = ini.replace("file = ../weather/sample_spring_dry.csv", f"file = {path.as_posix()}")
+    ini = ini.replace("start_datetime      = 2026-04-05 13:00", "start_datetime      = 2025-04-05 13:00")
+    scenario = SCENARIOS / "_test_past_weather.ini"
+    scenario.write_text(ini, encoding="utf-8")
+    try:
+        code, out = run_engine(scenario, "run", tmp / "past_weather")
+    finally:
+        scenario.unlink()
+    check("받은 과거 날씨로 엔진 실행", code == 0 and len(w.read_weather_csv(path)) == 10 and "[ERROR]" not in out,
+          out[-300:])
+
+
 def main() -> int:
     exe = app_config.engine_path()
     print(f"엔진: {exe}")
@@ -519,6 +575,7 @@ def main() -> int:
         test_hiker_teams(tmp)
         test_python_helpers(tmp)
         test_real_mountains(tmp)
+        test_past_weather(tmp)
 
     failed = [name for name, ok, _ in results if not ok]
     print(f"\n결과: {len(results) - len(failed)}/{len(results)} 통과")

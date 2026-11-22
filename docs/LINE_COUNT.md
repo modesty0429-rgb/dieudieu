@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9899 | 약 8,000 | 124% |
-| Python | 7684 | 약 4,000 | 192% |
-| **합계** | **17583** | **약 12,000** | **147%** |
+| Python | 7964 | 약 4,000 | 199% |
+| **합계** | **17863** | **약 12,000** | **149%** |
 
 ## C
 
@@ -88,7 +88,7 @@
 | `gui/services/season_render.py` | 238 | 155 | 48 | 35 |
 | `gui/services/terrain_generator.py` | 256 | 145 | 60 | 51 |
 | `gui/services/trail_generator.py` | 112 | 76 | 15 | 21 |
-| `gui/services/weather_api.py` | 236 | 153 | 46 | 37 |
+| `gui/services/weather_api.py` | 376 | 249 | 66 | 61 |
 | `gui/theme.py` | 188 | 155 | 19 | 14 |
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/views/daylight_group.py` | 94 | 65 | 12 | 17 |
@@ -102,8 +102,8 @@
 | `gui/views/scenario_panel.py` | 454 | 367 | 39 | 48 |
 | `gui/views/stats_view.py` | 226 | 181 | 18 | 27 |
 | `gui/views/suppression_view.py` | 226 | 180 | 16 | 30 |
-| `gui/views/weather_dialog.py` | 163 | 133 | 10 | 20 |
+| `gui/views/weather_dialog.py` | 246 | 205 | 16 | 25 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
-| `tools/run_tests.py` | 532 | 410 | 52 | 70 |
-| **합계** | **7684** | **5468** | **1078** | **1138** |
+| `tools/run_tests.py` | 589 | 460 | 54 | 75 |
+| **합계** | **7964** | **5686** | **1106** | **1172** |
