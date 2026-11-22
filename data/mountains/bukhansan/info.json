@@ -35,7 +35,15 @@
       "2": 47505,
       "3": 20770
     },
-    "outside_forest_cells": 0,
+    "outside_forest_cells": 27925,
+    "painted_fuel_cells": {
+      "fuel_1": 48,
+      "fuel_2": 17,
+      "fuel_3": 5888,
+      "fuel_4": 28963,
+      "fuel_5": 17002,
+      "fuel_9": 10157
+    },
     "unknown_codes": []
   },
   "id": "bukhansan",

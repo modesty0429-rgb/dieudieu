@@ -832,11 +832,14 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
             covered |= mask
     counts: dict[str, int] = defaultdict(int)
     unknown: set[str] = set()
-    fields = {paint_forest_file(p, center, fuel, covered, mapping, counts, unknown, crs, encoding, code_field)
+    painted = np.zeros(fuel.shape, dtype=bool)          # 다각형이 칠해진 칸 (이웃 도엽 다각형이 겹쳐도 한 번만)
+    fields = {paint_forest_file(p, center, fuel, painted, mapping, counts, unknown, crs, encoding, code_field)
               for p in files}
+    covered |= painted
     if not counts:
         raise ValueError("겹치는 파일은 있지만 지도 안에 칠할 임상도 다각형이 없음")
-    outside = int(covered.sum()) - int(sum(counts.values()))
+    outside = int(covered.sum()) - int(painted.sum())
+    final_codes = {f"fuel_{k}": int(v) for k, v in zip(*np.unique(fuel[painted], return_counts=True))}
     fuel[elevation <= 0.5] = mb.FUEL_WATER               # 바다(고도 0)는 물
     write_asc(folder / "fuel.asc", fuel, mb.CELL_SIZE_M, "{:d}")
 
@@ -844,7 +847,7 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
     info["forest_source"] = {"files": [p.name for p in files], "field": ", ".join(sorted(fields)),
                              "imported": str(date.today()),
                              "covered_pct": round(100.0 * float(covered.mean()), 1),
-                             "cells_by_code": dict(sorted(counts.items())), "outside_forest_cells": max(outside, 0),
+                             "cells_by_code": dict(sorted(counts.items())), "outside_forest_cells": outside, "painted_fuel_cells": final_codes,
                              "unknown_codes": sorted(unknown)}
     mb.write_info(mountain_id, info)
     mb.write_scenario(mountain, tuple(info["ignition"]))
@@ -854,6 +857,14 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
 # ----------------------------------------------------------------------
 # 명령줄
 # ----------------------------------------------------------------------
+FUEL_NAMES = {1: "초지", 2: "관목", 3: "침엽수", 4: "활엽수", 5: "혼효림", 7: "도로", 8: "물", 9: "바위"}
+
+
+def fuel_summary(cells: dict[str, int]) -> str:
+    """{'fuel_3': 100, ...} → '침엽수 100, ...'"""
+    return ", ".join(f"{FUEL_NAMES.get(int(k[5:]), k)} {v:,}" for k, v in cells.items())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="산림청 SHP(등산로·임상도) → 시뮬레이션 데이터")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -906,7 +917,7 @@ def main() -> None:
                     continue                     # 산을 지정하지 않았으면 겹치지 않는 산은 조용히 건너뜀
                 applied += 1
                 print(f"{mid}: 임상도 반영 — 지도의 {r['covered_pct']}% 를 덮음 (도엽 {len(r['files'])}장), "
-                      f"임종 코드별 칸 수 {r['cells_by_code']}"
+                      f"연료별 칸 수 {fuel_summary(r['painted_fuel_cells'])}, 산림 밖 {r['outside_forest_cells']}칸"
                       + (f", 표에 없는 코드(건너뜀) {r['unknown_codes']}" if r["unknown_codes"] else "")
                       + ("" if r["covered_pct"] >= 99 else ", 나머지는 [임시] 규칙"))
             if not applied:

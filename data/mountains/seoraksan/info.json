@@ -32,7 +32,14 @@
       "2": 80921,
       "3": 36879
     },
-    "outside_forest_cells": 0,
+    "outside_forest_cells": 145,
+    "painted_fuel_cells": {
+      "fuel_2": 16,
+      "fuel_3": 4088,
+      "fuel_4": 45904,
+      "fuel_5": 28350,
+      "fuel_9": 11497
+    },
     "unknown_codes": []
   },
   "id": "seoraksan",
