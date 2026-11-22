@@ -16,6 +16,8 @@ y 축을 뒤집어(invertY) y = 0(북쪽)이 위에 오게 한다.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt, Signal
@@ -41,6 +43,10 @@ def season_badge(season: str | None, snow_line_m: float) -> str:
     if snow_line_m > 0:
         text += f" · 해발 {snow_line_m:.0f} m 이상 눈"
     return text
+
+CROWDED_NODES = 60    # 등산로 지점이 이보다 많으면 자동으로 붙인 이름은 지도에 쓰지 않는다 (글자가 겹쳐 안 보이므로)
+AUTO_NAME = re.compile(r"(갈림길|들머리|끝지점|지도경계[동서남북]|최고점\d+m)\d*")
+
 
 class MapView(QWidget):
     cell_clicked = Signal(int, int)     # 지도를 클릭한 셀 (x, y)
@@ -326,10 +332,13 @@ class MapView(QWidget):
         spots = []
         font = QFont()
         font.setPointSize(8)
+        crowded = len(self.map.nodes) > CROWDED_NODES
         for node in self.map.nodes:
             color = theme.NODE_COLORS.get(node.kind, (200, 200, 200))
             symbol = "s" if node.is_exit else ("t" if node.kind == "SUMMIT" else "o")
             spots.append({"pos": (node.x + 0.5, node.y + 0.5), "brush": pg.mkBrush(*color), "symbol": symbol})
+            if crowded and node.kind != "SUMMIT" and AUTO_NAME.fullmatch(node.name):
+                continue                      # 지점이 많으면 '갈림길12' 같은 자동 이름은 숨김 (점은 그대로)
             label = pg.TextItem(node.name, color=(235, 235, 235), anchor=(0, 1.2))
             label.setFont(font)
             label.setPos(node.x + 1.5, node.y + 0.5)

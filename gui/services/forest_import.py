@@ -910,6 +910,28 @@ def paint_forest_file(path: Path, center, fuel: np.ndarray, covered: np.ndarray,
     return cf
 
 
+def nearest_burnable(point: tuple[int, int], fuel: np.ndarray, radius: int = 3,
+                     share: float = 0.8) -> tuple[int, int]:
+    """
+    point 가 숲 한가운데(주변 (2·radius+1)² 칸의 share 이상이 탈 수 있는 칸)이면 그대로,
+    아니면 그런 칸 중 가장 가까운 곳. (바위·시가지에 둘러싸인 외딴 칸에서 불이 바로 꺼지는 것을 막음)
+    """
+    burnable = ((fuel >= 1) & (fuel <= 5)).astype(float)
+    padded = np.pad(burnable, radius)
+    integral = np.pad(padded.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+    k = 2 * radius + 1
+    window = (integral[k:, k:] - integral[:-k, k:] - integral[k:, :-k] + integral[:-k, :-k]) / (k * k)
+    good = (burnable > 0) & (window >= share)
+    if not good.any():
+        good = burnable > 0
+    x, y = point
+    if good[y, x]:
+        return point
+    ys, xs = np.where(good)
+    i = int(np.argmin((xs - x) ** 2 + (ys - y) ** 2))
+    return int(xs[i]), int(ys[i])
+
+
 def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding: str | None = None,
                   code_field: str | None = None, fuel_map_path: Path = FUEL_MAP_FILE) -> dict:
     """
@@ -951,6 +973,8 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
     write_asc(folder / "fuel.asc", fuel, mb.CELL_SIZE_M, "{:d}")
 
     info = mb.read_info(mountain_id)
+    if info.get("ignition"):                             # 임상도로 발화 지점이 타지 않는 칸이 되면 가장 가까운 숲으로
+        info["ignition"] = list(nearest_burnable(tuple(info["ignition"]), fuel))
     info["forest_source"] = {"files": [p.name for p in files], "local_fuel_map": local_map.exists(), "field": ", ".join(sorted(fields)),
                              "imported": str(date.today()),
                              "covered_pct": round(100.0 * float(covered.mean()), 1),
