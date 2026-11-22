@@ -662,7 +662,10 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
 # 임상도 → 연료 지도
 # ----------------------------------------------------------------------
 def load_fuel_map(path: Path = FUEL_MAP_FILE) -> tuple[dict[str, int], int]:
-    """임종 코드 → 연료 코드 표와, 임상도가 없는 곳(비산림)의 기본 연료 코드"""
+    """
+    임종 코드 → 연료 코드 표와, 받은 도엽 안인데 다각형이 없는 곳(시가지·농경지 등 산림 밖)의 연료 코드('*')
+    키는 '임종코드' 또는 '임종코드/세부이름' (세부이름 = 비고(ETC_PCMTT) 또는 수종(KOFTR_NM), 예: 0/제지)
+    """
     mapping, default = {}, mb.FUEL_ROCK
     with open(path, encoding="utf-8") as f:
         for row in csv.reader(line for line in f if not line.lstrip().startswith("#")):
@@ -727,6 +730,30 @@ def sheet_number(lat: float, lon: float) -> str:
     return f"{lat_deg}{lon_deg % 10}{row50 * 4 + col50 + 1:02d}{row5 * 10 + col5 + 1:03d}"
 
 
+def sheet_bounds(number: str) -> tuple[float, float, float, float] | None:
+    """도엽 번호(8자리) → (남, 북, 서, 동) 위경도. 번호가 아니면 None (sheet_number 의 반대)"""
+    if len(number) != 8 or not number.isdigit():
+        return None
+    lat_deg, last = int(number[:2]), int(number[2])
+    lon_deg = 120 + last if last >= 4 else 130 + last        # 한국 경도 124~131°
+    n50, n5 = int(number[3:5]), int(number[5:])
+    if not (1 <= n50 <= 16 and 1 <= n5 <= 100):
+        return None
+    north = lat_deg + 1 - ((n50 - 1) // 4) * 0.25 - ((n5 - 1) // 10) * 0.025
+    west = lon_deg + ((n50 - 1) % 4) * 0.25 + ((n5 - 1) % 10) * 0.025
+    return north - 0.025, north, west, west + 0.025
+
+
+def sheet_mask(path: Path, center) -> np.ndarray | None:
+    """파일 이름이 도엽 번호이면, 그 도엽이 덮는 격자 칸 마스크"""
+    bounds = sheet_bounds(path.stem)
+    if bounds is None:
+        return None
+    south, north, west, east = bounds
+    lat, lon = mb.grid_cell_latlon(center)
+    return (lat >= south) & (lat < north) & (lon >= west) & (lon < east)
+
+
 def sheets_for_mountain(mountain_id: str) -> list[str]:
     """이 산의 9 km 지도를 모두 덮는 1:5,000 임상도 도엽 번호 목록"""
     mountain = mb.find_mountain(mountain_id)
@@ -756,9 +783,16 @@ def paint_forest_file(path: Path, center, fuel: np.ndarray, covered: np.ndarray,
     if cf is None:
         raise ValueError(f"{path.name}: 임종 코드 필드를 찾지 못함. --field 로 지정 (필드: {', '.join(field_names(reader))})")
     transformer, _ = make_transformer(path, crs)
-    index = field_names(reader).index(cf)
+    names = field_names(reader)
+    index = names.index(cf)
+    detail_index = [names.index(n) for n in ("ETC_PCMTT", "KOFTR_NM") if n in names]   # 비고, 수종
     for shape_rec in reader.shapeRecords():
         code = normalize_code(shape_rec.record[index])
+        for i in detail_index:                         # '0/제지' 처럼 세부 이름까지 맞는 줄이 있으면 우선
+            detail = str(shape_rec.record[i]).strip()
+            if detail and f"{code}/{detail}" in mapping:
+                code = f"{code}/{detail}"
+                break
         rings = shape_parts_grid(shape_rec.shape, transformer, center)
         result = rasterize_polygon(rings) if rings else None
         if result is None:
@@ -787,16 +821,22 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
     if not files:
         raise ValueError(f"넣은 임상도 파일 중 {mountain['name']} 지도와 겹치는 것이 없음 "
                          f"(필요한 도엽: forest_import.py sheets --id {mountain_id})")
-    mapping, _ = load_fuel_map(fuel_map_path)
+    mapping, outside_forest = load_fuel_map(fuel_map_path)
     elevation = read_asc(folder / "elev.asc")[1]
-    fuel = mb.rule_based_fuel(elevation)                 # 덮지 않은 곳은 [임시] 규칙
+    fuel = mb.rule_based_fuel(elevation)                 # 받지 않은 도엽 자리는 [임시] 규칙
     covered = np.zeros(fuel.shape, dtype=bool)
+    for path in files:                                   # 받은 도엽 안은 먼저 '산림 밖'으로 칠하고 다각형을 덮는다
+        mask = sheet_mask(path, center)
+        if mask is not None:
+            fuel[mask] = outside_forest
+            covered |= mask
     counts: dict[str, int] = defaultdict(int)
     unknown: set[str] = set()
     fields = {paint_forest_file(p, center, fuel, covered, mapping, counts, unknown, crs, encoding, code_field)
               for p in files}
-    if not covered.any():
+    if not counts:
         raise ValueError("겹치는 파일은 있지만 지도 안에 칠할 임상도 다각형이 없음")
+    outside = int(covered.sum()) - int(sum(counts.values()))
     fuel[elevation <= 0.5] = mb.FUEL_WATER               # 바다(고도 0)는 물
     write_asc(folder / "fuel.asc", fuel, mb.CELL_SIZE_M, "{:d}")
 
@@ -804,7 +844,8 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
     info["forest_source"] = {"files": [p.name for p in files], "field": ", ".join(sorted(fields)),
                              "imported": str(date.today()),
                              "covered_pct": round(100.0 * float(covered.mean()), 1),
-                             "cells_by_code": dict(sorted(counts.items())), "unknown_codes": sorted(unknown)}
+                             "cells_by_code": dict(sorted(counts.items())), "outside_forest_cells": max(outside, 0),
+                             "unknown_codes": sorted(unknown)}
     mb.write_info(mountain_id, info)
     mb.write_scenario(mountain, tuple(info["ignition"]))
     return info["forest_source"]
