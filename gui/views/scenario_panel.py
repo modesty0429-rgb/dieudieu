@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout, 
                                QLabel, QPushButton, QRadioButton, QScrollArea, QSlider, QSpinBox,
                                QVBoxLayout, QWidget)
 
-from services import app_config
+from services import app_config, mountain_builder
 from services.result_loader import parse_datetime, season_from_ini
 from views.hiker_group import HikerGroup
 from services.scenario_writer import ScenarioOverrides, SeasonPreset, load_season_presets, read_ini
@@ -101,6 +101,7 @@ class ScenarioPanel(QScrollArea):
         self.setWidget(content)
 
         self._load_scenario_values(self.current_scenario())
+        self._update_mountain_note()
 
     # ------------------------------------------------------------------
     # 화면 구성
@@ -110,11 +111,15 @@ class ScenarioPanel(QScrollArea):
         form = QFormLayout(group)
         self.scenario_combo = QComboBox()
         for path in app_config.list_scenarios():
-            self.scenario_combo.addItem(path.stem, str(path))
+            self.scenario_combo.addItem(mountain_builder.scenario_label(path), str(path))
         index = self.scenario_combo.findData(str(app_config.DEFAULT_SCENARIO))
         self.scenario_combo.setCurrentIndex(max(index, 0))
         self.scenario_combo.currentIndexChanged.connect(self._on_scenario_combo)
         form.addRow("기본 설정", self.scenario_combo)
+        self.mountain_note = QLabel("")          # 실제 산이면 지형·연료·등산로 반영 상태
+        self.mountain_note.setObjectName("dim")
+        self.mountain_note.setWordWrap(True)
+        form.addRow(self.mountain_note)
 
         self.season_combo = QComboBox()
         self.season_combo.addItem("시나리오 파일 값 그대로", None)
@@ -382,7 +387,13 @@ class ScenarioPanel(QScrollArea):
     def _on_scenario_combo(self) -> None:
         path = self.current_scenario()
         self._load_scenario_values(path)
+        self._update_mountain_note()
         self.scenario_changed.emit(path)
+
+    def _update_mountain_note(self) -> None:
+        text = mountain_builder.data_status_text(self.current_scenario())
+        self.mountain_note.setText(text)
+        self.mountain_note.setVisible(bool(text))
 
     def _on_season_changed(self) -> None:
         """
@@ -414,7 +425,8 @@ class ScenarioPanel(QScrollArea):
         self.season_preview_changed.emit(preset.key, float(preset.snow_line_m))
 
     def _open_weather_dialog(self) -> None:
-        dialog = WeatherDialog(self)
+        mid = mountain_builder.scenario_mountain_id(self.current_scenario())
+        dialog = WeatherDialog(self, mountain_builder.read_info(mid).get("name") if mid else None)
         if dialog.exec() and dialog.selected_path is not None and dialog.rows:
             self.set_weather_override((dialog.selected_path, f"{dialog.rows[0].time:%Y-%m-%d %H:%M}"))
 

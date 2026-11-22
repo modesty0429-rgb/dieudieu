@@ -1,0 +1,86 @@
+{
+  "forest_source": {
+    "files": [
+      "33607093.shp",
+      "33607094.shp",
+      "33607095.shp",
+      "33607096.shp",
+      "33607097.shp",
+      "33611003.shp",
+      "33611004.shp",
+      "33611005.shp",
+      "33611006.shp",
+      "33611007.shp",
+      "33611013.shp",
+      "33611014.shp",
+      "33611015.shp",
+      "33611016.shp",
+      "33611017.shp",
+      "33611023.shp",
+      "33611024.shp",
+      "33611025.shp",
+      "33611026.shp",
+      "33611027.shp",
+      "33611033.shp",
+      "33611034.shp",
+      "33611035.shp",
+      "33611036.shp",
+      "33611037.shp"
+    ],
+    "local_fuel_map": true,
+    "field": "FRTP_CD",
+    "imported": "2026-11-22",
+    "covered_pct": 100.0,
+    "cells_by_code": {
+      "0/관목덤불": 175,
+      "0/묘지": 14,
+      "0/미립목지": 17,
+      "0/암석지": 428,
+      "0/제지": 10660,
+      "1": 21857,
+      "2": 58103,
+      "3": 15940
+    },
+    "outside_forest_cells": 1855,
+    "painted_fuel_cells": {
+      "fuel_1": 27,
+      "fuel_2": 10246,
+      "fuel_3": 14720,
+      "fuel_4": 47969,
+      "fuel_5": 14755,
+      "fuel_9": 428
+    },
+    "unknown_codes": []
+  },
+  "id": "hallasan",
+  "name": "한라산",
+  "peak": "백록담",
+  "center": [
+    33.3617,
+    126.5292
+  ],
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    556.2,
+    1934.6
+  ],
+  "trail_source": {
+    "files": [
+      "osm_trails.shp"
+    ],
+    "imported": "2026-11-22",
+    "nodes": 34,
+    "edges": 27,
+    "length_km": 40.8,
+    "spots_used": 1,
+    "hikers": 5,
+    "gaps_bridged": 1,
+    "provider": "OpenStreetMap (© OpenStreetMap contributors, ODbL)"
+  },
+  "ignition": [
+    92,
+    206
+  ]
+}

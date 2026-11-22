@@ -17,15 +17,18 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
                                QTableWidgetItem, QVBoxLayout)
 
 import theme
-from services import app_config, weather_api
+from services import app_config, mountain_builder, weather_api
 from services.weather_api import WeatherApiError, WeatherRow
 
 CUSTOM_LOCATION = "직접 입력"
 
 
 class WeatherDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, mountain_name: str | None = None):
         super().__init__(parent)
+        # 위치 목록: data/mountains/mountains.json (실제 산 데이터와 같은 위치), 읽지 못하면 기본 목록
+        self.presets = mountain_builder.weather_presets() or weather_api.MOUNTAIN_PRESETS
+        self.mountain_name = mountain_name
         self.setWindowTitle("실제 기상 데이터 불러오기")
         self.resize(640, 620)
         self.selected_path: Path | None = None
@@ -58,7 +61,10 @@ class WeatherDialog(QDialog):
         group = QGroupBox("기상청 단기예보 받기 (인터넷 + API 키 필요)")
         form = QFormLayout(group)
         self.location_combo = QComboBox()
-        self.location_combo.addItems(list(weather_api.MOUNTAIN_PRESETS) + [CUSTOM_LOCATION])
+        self.location_combo.addItems(list(self.presets) + [CUSTOM_LOCATION])
+        for i, name in enumerate(self.presets):          # 실제 산 시나리오면 그 산을 먼저 고름
+            if self.mountain_name and name.startswith(self.mountain_name):
+                self.location_combo.setCurrentIndex(i)
         self.location_combo.currentIndexChanged.connect(self._on_location)
         self.lat = QDoubleSpinBox()
         self.lon = QDoubleSpinBox()
@@ -111,7 +117,7 @@ class WeatherDialog(QDialog):
         self.lat.setEnabled(custom)
         self.lon.setEnabled(custom)
         if not custom:
-            lat, lon = weather_api.MOUNTAIN_PRESETS[name]
+            lat, lon = self.presets[name]
             self.lat.setValue(lat)
             self.lon.setValue(lon)
         self._update_grid_label()

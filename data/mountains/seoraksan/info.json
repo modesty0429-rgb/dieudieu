@@ -1,0 +1,78 @@
+{
+  "forest_source": {
+    "files": [
+      "38814037.shp",
+      "38814038.shp",
+      "38814039.shp",
+      "38814040.shp",
+      "38814047.shp",
+      "38814048.shp",
+      "38814049.shp",
+      "38814050.shp",
+      "38814057.shp",
+      "38814058.shp",
+      "38814059.shp",
+      "38814060.shp",
+      "38814067.shp",
+      "38814068.shp",
+      "38814069.shp",
+      "38814070.shp",
+      "38815031.shp",
+      "38815041.shp",
+      "38815051.shp",
+      "38815061.shp"
+    ],
+    "local_fuel_map": false,
+    "field": "FRTP_CD",
+    "imported": "2026-11-22",
+    "covered_pct": 100.0,
+    "cells_by_code": {
+      "0/관목덤불": 20,
+      "0/제지": 12369,
+      "1": 13542,
+      "2": 80921,
+      "3": 36879
+    },
+    "outside_forest_cells": 145,
+    "painted_fuel_cells": {
+      "fuel_2": 16,
+      "fuel_3": 4088,
+      "fuel_4": 45904,
+      "fuel_5": 28350,
+      "fuel_9": 11497
+    },
+    "unknown_codes": []
+  },
+  "id": "seoraksan",
+  "name": "설악산",
+  "peak": "대청봉",
+  "center": [
+    38.1194,
+    128.4656
+  ],
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    162.4,
+    1700.0
+  ],
+  "trail_source": {
+    "files": [
+      "PMNTN_설악산_대청봉_428302602.shp",
+      "PMNTN_SPOT_설악산_대청봉_428302602.shp"
+    ],
+    "imported": "2026-11-22",
+    "nodes": 31,
+    "edges": 36,
+    "length_km": 69.5,
+    "spots_used": 23,
+    "hikers": 5,
+    "gaps_bridged": 0,
+    "provider": "산림청"
+  },
+  "ignition": [
+    92,
+    206
+  ]
+}

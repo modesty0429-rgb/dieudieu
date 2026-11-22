@@ -191,6 +191,7 @@ wildfire.exe <시나리오.ini> [--mode 모드] [--out 결과폴더] [--seed 시
 | `evening_valley.ini` | 오후 5시 발화, 일몰 무렵 대피. 낮/밤 효과 확인용 (`[daylight] enabled = 0`으로 바꿔 비교) |
 | `season_presets.ini` | GUI "계절" 선택 값 (봄·여름·가을·겨울: 대표 날짜, 연료 수분, 눈 경계). 어떤 시나리오든 `[weather] mode = season` + `[season] season = winter`처럼 쓸 수도 있음 |
 | `tests/*.ini` | 일부러 틀린 시나리오 5개 (오류 메시지 확인용) |
+| `mountain_<산>.ini` | **실제 산** 6곳(북한산·설악산·오대산(충남 금산)·지리산·팔공산(전북 장수)·한라산)의 실제 지형. GUI에서는 "실제 산: 설악산 (대청봉)"처럼 보임 (7-1 참고) |
 
 ### 4-2. 실행 예
 
@@ -287,6 +288,72 @@ python gui/services/trail_generator.py
 
 줄 수 집계: `python tools/count_lines.py` → `docs/LINE_COUNT.md`
 
+### 7-1. 실제 산 데이터 (지형 + 산림청 등산로·임상도)
+
+`data/mountains/<산 id>/` 에 9 km × 9 km(300 × 300칸) 데이터가 있습니다. 지도는 **받은 등산로 자료가 있는 곳**에 맞췄습니다.
+(오대산·팔공산은 산림청 자료가 이름이 같은 다른 지역 산이라 그 산으로 지도를 만들었고, 북한산은 자료 구역이 들어가도록 지도 중심을 정상에서 남쪽으로 약 3.3 km 옮겼습니다.)
+산 목록과 위치는 `data/mountains/mountains.json` (기상청 예보 받기 위치 목록도 여기서 읽음).
+
+| 데이터 | 지금 상태 | 출처 |
+|---|---|---|
+| 지형 `elev.asc` | **실제 지형** (6개 산 모두 포함) | AWS Terrain Tiles (한국은 SRTM 30 m 기반). 정상 고도 오차 약 1% |
+| 연료 `fuel.asc` | **6곳 모두 산림청 임상도 반영** (도엽 20~25장, 지도 100%) | 산림청 1:5,000 임상도 |
+| 등산로 `trails.txt` | **6곳 모두 반영** (설악산 69.5 km, 지리산 60.8, 한라산 40.8, 북한산 12.5, 전북 팔공산 8.6, 충남 오대산 4.2) | 산림청 등산로. 한라산은 산림청 자료에 정상 탐방로가 없어 **OpenStreetMap** (© OpenStreetMap contributors) |
+
+GUI 시나리오 칸 아래에 산마다 반영 상태가 표시됩니다.
+
+**① 산림청 자료 받기** (용량이 커서 저장소에 넣지 않습니다. `data/raw/` 에 두면 git이 무시합니다)
+- 등산로: 산림청 "산림공간정보서비스" 또는 공공데이터포털에서 **"등산로"** 검색 → 산별 SHP (선 레이어 + 지점(spot) 레이어)
+- 임상도: **1:5,000 임상도는 도엽(지도 한 장, 약 2.3 km × 2.8 km) 단위**로 받습니다. 산마다 필요한 도엽 번호(20~25장)는 아래 명령으로 볼 수 있습니다.
+  받은 도엽은 한 폴더에 모아 한꺼번에 넣으면 산마다 겹치는 것만 골라 씁니다. 일부만 받으면 받은 곳만 임상도, 나머지는 [임시] 규칙입니다.
+- SHP는 `.shp .shx .dbf .prj` 네 파일이 같은 폴더에 있어야 합니다. 받은 그대로 산마다 폴더를 따로 두세요 (`data/raw/설악산/` 등).
+- `PMNTN_<산>_<코드>.shp` = 등산로 선, `PMNTN_SPOT_<산>_<코드>.shp` = 지점(시종점·분기점·정상 등)
+- **주의: 이름이 같은 산이 여러 곳 있습니다.** (예: 경남 통영 사량도의 "지리산", 전북 장수의 "팔공산") 산 코드 앞 5자리가 시·군·구 코드이니 확인하세요.
+  변환 도구가 자료 위치와 정상까지 거리를 알려 줍니다.
+- 큰 산(북한산·지리산 등)은 시·군·구별로 파일이 나뉘어 있어, `--lines`·`--spots` 에 여러 파일을 함께 넣습니다.
+
+**② 변환** (저장소 폴더에서, `python -m pip install pyshp pyproj pillow` 먼저)
+
+```bash
+python gui/services/forest_import.py fields data/raw/북한산_등산로.shp
+```
+
+```bash
+python gui/services/forest_import.py trails --id seoraksan --lines data/raw/설악산/PMNTN_설악산_대청봉_428302602.shp --spots data/raw/설악산/PMNTN_SPOT_설악산_대청봉_428302602.shp
+```
+
+```bash
+python gui/services/forest_import.py sheets
+```
+
+```bash
+python gui/services/forest_import.py forest --shp data/raw/임상도/*.shp
+```
+
+- `fields`: 필드 이름과 예시 값을 보여 줍니다. 이름·종류 필드를 자동으로 못 찾으면 `--name-field`, `--type-field`, `--field` 로 지정
+- 좌표계는 `.prj` 를 읽어 자동 판단(산림청 자료는 보통 EPSG:5186/5179). `.prj` 가 없으면 `--crs 5186`
+- 임종 코드 → 연료 코드 표는 `data/mountains/forest_fuel_map.csv` (죽림·무립목지·비산림 처리는 [가정]). 산마다 다르게 볼 코드는 `data/mountains/<산>/forest_fuel_map.csv` 로 덮어씀 (예: 한라산)
+- 변환하면 `data/scenarios/mountain_<id>.ini` 가 자동으로 다시 만들어져 등산로가 들어갑니다.
+
+**산림청 자료에 등산로가 없을 때 (예: 한라산)**: OpenStreetMap 등산로를 Overture Maps(AWS 공개 자료)에서 받습니다. `python -m pip install pyarrow` 먼저.
+
+```bash
+python gui/services/overture_trails.py --id hallasan
+```
+
+```bash
+python gui/services/forest_import.py trails --id hallasan --lines data/raw/한라산/osm_trails.shp
+```
+
+- 오솔길·보행로·계단·임도만 쓰고, 이름에 "비법정"(출입 금지)이 들어간 길은 뺍니다.
+- OSM 자료를 쓰면 "© OpenStreetMap contributors" 표시가 필요합니다 (ODbL 라이선스).
+
+**③ 다른 산 추가**: `mountains.json` 에 id·이름·정상·위도/경도를 넣고 (인터넷 필요)
+
+```bash
+python gui/services/mountain_builder.py --id 새산id
+```
+
 ## 8. 문서
 
 | 문서 | 내용 |
@@ -296,6 +363,7 @@ python gui/services/trail_generator.py
 | [`docs/presentation_notes.md`](docs/presentation_notes.md) | 발표 자료: 블록 다이어그램, main 순서도, 구조체·주요 함수 설명, 시연 순서, 차별점, 예상 질문 |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | 단계별 작업 기록 |
 | [`docs/LINE_COUNT.md`](docs/LINE_COUNT.md) | 언어별·파일별 줄 수 |
+| [`docs/forest_sheets.md`](docs/forest_sheets.md) | 산별로 받아야 할 1:5,000 임상도 도엽 번호 |
 | `docs/images/` | GUI 화면 그림 |
 | `docs/prompts/` | 단계별 요청(프롬프트) 기록 |
 

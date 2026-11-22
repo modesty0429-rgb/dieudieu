@@ -1,0 +1,93 @@
+{
+  "forest_source": {
+    "files": [
+      "35711048.shp",
+      "35711049.shp",
+      "35711050.shp",
+      "35711058.shp",
+      "35711059.shp",
+      "35711060.shp",
+      "35711068.shp",
+      "35711069.shp",
+      "35711070.shp",
+      "35711078.shp",
+      "35711079.shp",
+      "35711080.shp",
+      "35711088.shp",
+      "35711089.shp",
+      "35711090.shp",
+      "35712041.shp",
+      "35712042.shp",
+      "35712051.shp",
+      "35712052.shp",
+      "35712061.shp",
+      "35712062.shp",
+      "35712071.shp",
+      "35712072.shp",
+      "35712081.shp",
+      "35712082.shp"
+    ],
+    "local_fuel_map": false,
+    "field": "FRTP_CD",
+    "imported": "2026-11-22",
+    "covered_pct": 100.0,
+    "cells_by_code": {
+      "0/관목덤불": 741,
+      "0/묘지": 8,
+      "0/미립목지": 75,
+      "0/암석지": 610,
+      "0/제지": 739,
+      "1": 19104,
+      "2": 94818,
+      "3": 11245,
+      "4": 89
+    },
+    "outside_forest_cells": 253,
+    "painted_fuel_cells": {
+      "fuel_1": 66,
+      "fuel_2": 688,
+      "fuel_3": 10412,
+      "fuel_4": 67170,
+      "fuel_5": 10231,
+      "fuel_9": 1180
+    },
+    "unknown_codes": []
+  },
+  "id": "jirisan",
+  "name": "지리산",
+  "peak": "천왕봉",
+  "center": [
+    35.3369,
+    127.7306
+  ],
+  "summit_xy": [
+    150,
+    150
+  ],
+  "note": "",
+  "grid_size": 300,
+  "cell_size_m": 30.0,
+  "dem_source": "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM 30 m 기반), 확대 수준 13",
+  "elevation_range_m": [
+    476.5,
+    1898.0
+  ],
+  "trail_source": {
+    "files": [
+      "PMNTN_지리산_천왕봉_488605302.shp",
+      "PMNTN_SPOT_지리산_천왕봉_488605302.shp"
+    ],
+    "imported": "2026-11-22",
+    "nodes": 28,
+    "edges": 31,
+    "length_km": 60.8,
+    "spots_used": 19,
+    "hikers": 5,
+    "gaps_bridged": 0,
+    "provider": "산림청"
+  },
+  "ignition": [
+    93,
+    207
+  ]
+}

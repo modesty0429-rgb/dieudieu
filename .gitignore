@@ -28,3 +28,7 @@ data/scenarios/gui_custom.ini
 # GUI가 등산객 팀 설정으로 만드는 등산로·등산객 파일
 data/trails/gui_trails.txt
 data/trails/gui_hikers.txt
+# 산 지형 타일 내려받기 캐시
+data/mountains/_cache/
+# 산림청 원본 자료 (용량이 커서 올리지 않음, 변환 결과만 올림)
+data/raw/
