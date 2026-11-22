@@ -295,7 +295,8 @@ GUI 시나리오 칸 아래에 산마다 반영 상태가 표시됩니다.
 
 **① 산림청 자료 받기** (용량이 커서 저장소에 넣지 않습니다. `data/raw/` 에 두면 git이 무시합니다)
 - 등산로: 산림청 "산림공간정보서비스" 또는 공공데이터포털에서 **"등산로"** 검색 → 산별 SHP (선 레이어 + 지점(spot) 레이어)
-- 임상도: 산림공간정보서비스 → **임상도(1:5,000 또는 1:25,000)** SHP (시·도 단위)
+- 임상도: **1:5,000 임상도는 도엽(지도 한 장, 약 2.3 km × 2.8 km) 단위**로 받습니다. 산마다 필요한 도엽 번호(20~25장)는 아래 명령으로 볼 수 있습니다.
+  받은 도엽은 한 폴더에 모아 한꺼번에 넣으면 산마다 겹치는 것만 골라 씁니다. 일부만 받으면 받은 곳만 임상도, 나머지는 [임시] 규칙입니다.
 - SHP는 `.shp .shx .dbf .prj` 네 파일이 같은 폴더에 있어야 합니다. 받은 그대로 산마다 폴더를 따로 두세요 (`data/raw/설악산/` 등).
 - `PMNTN_<산>_<코드>.shp` = 등산로 선, `PMNTN_SPOT_<산>_<코드>.shp` = 지점(시종점·분기점·정상 등)
 - **주의: 이름이 같은 산이 여러 곳 있습니다.** (예: 경남 통영 사량도의 "지리산", 전북 장수의 "팔공산") 산 코드 앞 5자리가 시·군·구 코드이니 확인하세요.
@@ -313,7 +314,11 @@ python gui/services/forest_import.py trails --id seoraksan --lines data/raw/설�
 ```
 
 ```bash
-python gui/services/forest_import.py forest --id bukhansan --shp data/raw/임상도_서울.shp
+python gui/services/forest_import.py sheets
+```
+
+```bash
+python gui/services/forest_import.py forest --shp data/raw/임상도/*.shp
 ```
 
 - `fields`: 필드 이름과 예시 값을 보여 줍니다. 이름·종류 필드를 자동으로 못 찾으면 `--name-field`, `--type-field`, `--field` 로 지정
@@ -336,6 +341,7 @@ python gui/services/mountain_builder.py --id 새산id
 | [`docs/presentation_notes.md`](docs/presentation_notes.md) | 발표 자료: 블록 다이어그램, main 순서도, 구조체·주요 함수 설명, 시연 순서, 차별점, 예상 질문 |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | 단계별 작업 기록 |
 | [`docs/LINE_COUNT.md`](docs/LINE_COUNT.md) | 언어별·파일별 줄 수 |
+| [`docs/forest_sheets.md`](docs/forest_sheets.md) | 산별로 받아야 할 1:5,000 임상도 도엽 번호 |
 | `docs/images/` | GUI 화면 그림 |
 | `docs/prompts/` | 단계별 요청(프롬프트) 기록 |
 

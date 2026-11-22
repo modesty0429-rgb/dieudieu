@@ -1,12 +1,12 @@
 # 줄 수 현황 (LINE_COUNT)
 
-> `python tools/count_lines.py` 로 자동 생성 — 2026-11-21
+> `python tools/count_lines.py` 로 자동 생성 — 2026-11-22
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9135 | 약 8,000 | 114% |
-| Python | 5883 | 약 4,000 | 147% |
-| **합계** | **15018** | **약 12,000** | **125%** |
+| Python | 5962 | 약 4,000 | 149% |
+| **합계** | **15097** | **약 12,000** | **126%** |
 
 ## C
 
@@ -72,9 +72,9 @@
 | `gui/services/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/services/app_config.py` | 62 | 31 | 16 | 15 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/forest_import.py` | 809 | 595 | 97 | 117 |
+| `gui/services/forest_import.py` | 879 | 645 | 110 | 124 |
 | `gui/services/map_render.py` | 110 | 60 | 30 | 20 |
-| `gui/services/mountain_builder.py` | 418 | 239 | 108 | 71 |
+| `gui/services/mountain_builder.py` | 424 | 245 | 108 | 71 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
 | `gui/services/result_loader.py` | 423 | 312 | 35 | 76 |
 | `gui/services/scenario_writer.py` | 148 | 100 | 25 | 23 |
@@ -95,5 +95,5 @@
 | `gui/views/weather_dialog.py` | 163 | 133 | 10 | 20 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
-| `tools/run_tests.py` | 310 | 229 | 34 | 47 |
-| **합계** | **5883** | **4171** | **824** | **888** |
+| `tools/run_tests.py` | 313 | 232 | 34 | 47 |
+| **합계** | **5962** | **4230** | **837** | **895** |

@@ -378,7 +378,13 @@ def data_status_text(scenario_path: Path) -> str:
     info = read_info(mid) if mid else {}
     if not info:
         return ""
-    fuel = "산림청 임상도" if info.get("forest_source") else "[임시] 사면 규칙 (임상도 반영 전)"
+    forest = info.get("forest_source")
+    if not forest:
+        fuel = "[임시] 사면 규칙 (임상도 반영 전)"
+    elif forest.get("covered_pct", 100) >= 99:
+        fuel = "산림청 임상도"
+    else:
+        fuel = f"산림청 임상도 {forest['covered_pct']:g}% + 나머지 [임시] 규칙"
     trails = info.get("trail_source")
     trail = (f"산림청 등산로 {trails['length_km']} km, 등산객 {trails['hikers']}팀" if trails
              else "없음 (산림청 등산로 반영 전, 대피 안내 계산 안 함)")

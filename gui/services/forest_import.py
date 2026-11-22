@@ -81,7 +81,7 @@ def open_shapefile(path: Path, encoding: str | None = None):
             reader = shapefile.Reader(str(path), encoding=enc)
             reader.records()                      # 글자가 제대로 읽히는지 미리 확인
             return reader
-        except UnicodeDecodeError:
+        except (UnicodeDecodeError, shapefile.ShapefileException):   # 필드 이름이 다른 인코딩일 때
             continue
     raise ValueError(f"{path.name}: 글자 인코딩을 알 수 없음 (--encoding cp949 또는 utf-8 지정)")
 
@@ -709,50 +709,101 @@ def rasterize_polygon(rings: list[np.ndarray]) -> tuple[np.ndarray, int, int] | 
     return mask, x0, y0
 
 
-def import_forest(mountain_id: str, shp_path: Path, crs: str | None = None, encoding: str | None = None,
-                  code_field: str | None = None, fuel_map_path: Path = FUEL_MAP_FILE) -> dict:
-    """산림청 임상도 SHP → fuel.asc. 임종 코드별 칸 수를 돌려준다."""
+def sheet_number(lat: float, lon: float) -> str:
+    """
+    위경도가 들어가는 1:5,000 지도(임상도) 도엽 번호 (8자리, 예: 37815068)
+      앞 2자리: 위도 정수, 3번째: 경도 정수의 끝자리,
+      다음 2자리: 1°×1° 를 4×4 로 나눈 1:50,000 도엽(15′, 북서쪽부터 01~16),
+      끝 3자리: 1:50,000 도엽을 10×10 으로 나눈 1:5,000 도엽(1.5′, 북서쪽부터 001~100)
+    (받은 도엽 37815068 이 위도 37.075~37.100°, 경도 128.675~128.700° 인 것으로 확인)
+    """
+    eps = 1e-9
+    lat_deg, lon_deg = int(lat), int(lon)
+    row50 = min(int((lat_deg + 1 - lat + eps) / 0.25), 3)
+    col50 = min(int((lon - lon_deg + eps) / 0.25), 3)
+    top, left = lat_deg + 1 - row50 * 0.25, lon_deg + col50 * 0.25
+    row5 = min(int((top - lat + eps) / 0.025), 9)
+    col5 = min(int((lon - left + eps) / 0.025), 9)
+    return f"{lat_deg}{lon_deg % 10}{row50 * 4 + col50 + 1:02d}{row5 * 10 + col5 + 1:03d}"
+
+
+def sheets_for_mountain(mountain_id: str) -> list[str]:
+    """이 산의 9 km 지도를 모두 덮는 1:5,000 임상도 도엽 번호 목록"""
     mountain = mb.find_mountain(mountain_id)
-    folder = mb.mountain_folder(mountain_id)
-    center = tuple(mountain["center"])
-    reader = open_shapefile(shp_path, encoding)
+    lat, lon = mb.grid_cell_latlon(tuple(mountain["center"]))
+    picks = list(range(0, mb.GRID_SIZE, 10)) + [mb.GRID_SIZE - 1]
+    return sorted({sheet_number(float(lat[y, x]), float(lon[y, x])) for y in picks for x in picks})
+
+
+def shapefile_overlaps(path: Path, center, crs: str | None, encoding: str | None) -> bool:
+    """SHP 전체 범위가 이 산의 9 km 지도와 겹치는가 (빠른 검사)"""
+    reader = open_shapefile(path, encoding)
+    transformer, _ = make_transformer(path, crs)
+    x0, y0, x1, y1 = reader.bbox
+    lon, lat = transformer.transform([x0, x1, x0, x1], [y0, y0, y1, y1])
+    gx, gy = mb.latlon_to_grid(np.asarray(lat), np.asarray(lon), center)
+    return gx.max() >= 0 and gx.min() <= mb.GRID_SIZE - 1 and gy.max() >= 0 and gy.min() <= mb.GRID_SIZE - 1
+
+
+def paint_forest_file(path: Path, center, fuel: np.ndarray, covered: np.ndarray, mapping: dict[str, int],
+                      counts: dict[str, int], unknown: set[str], crs: str | None, encoding: str | None,
+                      code_field: str | None) -> str:
+    """임상도 SHP 하나의 다각형을 연료 지도에 칠한다. 쓴 필드 이름을 돌려준다."""
+    reader = open_shapefile(path, encoding)
     if reader.shapeType not in (5, 15, 25):
-        raise ValueError(f"{shp_path.name}: 다각형(POLYGON) 레이어가 아님 ({reader.shapeTypeName})")
+        raise ValueError(f"{path.name}: 다각형(POLYGON) 레이어가 아님 ({reader.shapeTypeName})")
     cf = find_field(reader, FOREST_FIELD_HINTS, code_field)
     if cf is None:
-        raise ValueError(f"임종 코드 필드를 찾지 못함. --field 로 지정하세요 (필드: {', '.join(field_names(reader))})")
-    transformer, _ = make_transformer(shp_path, crs)
-    mapping, default = load_fuel_map(fuel_map_path)
+        raise ValueError(f"{path.name}: 임종 코드 필드를 찾지 못함. --field 로 지정 (필드: {', '.join(field_names(reader))})")
+    transformer, _ = make_transformer(path, crs)
     index = field_names(reader).index(cf)
-
-    fuel = np.full((mb.GRID_SIZE, mb.GRID_SIZE), default, dtype=int)
-    counts: dict[str, int] = defaultdict(int)
-    unknown: set[str] = set()
     for shape_rec in reader.shapeRecords():
         code = normalize_code(shape_rec.record[index])
         rings = shape_parts_grid(shape_rec.shape, transformer, center)
-        if not rings:
-            continue
-        result = rasterize_polygon(rings)
+        result = rasterize_polygon(rings) if rings else None
         if result is None:
             continue
         mask, x0, y0 = result
         if code not in mapping:
             unknown.add(code)
             continue
-        fuel[y0:y0 + mask.shape[0], x0:x0 + mask.shape[1]][mask] = mapping[code]
+        region = (slice(y0, y0 + mask.shape[0]), slice(x0, x0 + mask.shape[1]))
+        fuel[region][mask] = mapping[code]
+        covered[region] |= mask
         counts[code] += int(mask.sum())
+    return cf
 
+
+def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding: str | None = None,
+                  code_field: str | None = None, fuel_map_path: Path = FUEL_MAP_FILE) -> dict:
+    """
+    산림청 임상도 SHP(여러 도엽 가능) → fuel.asc. 이 산의 지도와 겹치는 파일만 골라 쓴다.
+    임상도가 덮지 않은 곳(받지 않은 도엽)은 [임시] 사면 규칙 연료를 그대로 쓴다.
+    """
+    mountain = mb.find_mountain(mountain_id)
+    folder = mb.mountain_folder(mountain_id)
+    center = tuple(mountain["center"])
+    files = [p for p in as_path_list(shp_paths) if shapefile_overlaps(p, center, crs, encoding)]
+    if not files:
+        raise ValueError(f"넣은 임상도 파일 중 {mountain['name']} 지도와 겹치는 것이 없음 "
+                         f"(필요한 도엽: forest_import.py sheets --id {mountain_id})")
+    mapping, _ = load_fuel_map(fuel_map_path)
     elevation = read_asc(folder / "elev.asc")[1]
-    fuel[elevation <= 0.5] = 8                          # 바다(고도 0)는 물
-    covered = int(sum(counts.values()))
-    if covered == 0:
-        raise ValueError(f"{shp_path.name}: 이 산의 9 km 지도 안에 들어오는 임상도 다각형이 없음")
+    fuel = mb.rule_based_fuel(elevation)                 # 덮지 않은 곳은 [임시] 규칙
+    covered = np.zeros(fuel.shape, dtype=bool)
+    counts: dict[str, int] = defaultdict(int)
+    unknown: set[str] = set()
+    fields = {paint_forest_file(p, center, fuel, covered, mapping, counts, unknown, crs, encoding, code_field)
+              for p in files}
+    if not covered.any():
+        raise ValueError("겹치는 파일은 있지만 지도 안에 칠할 임상도 다각형이 없음")
+    fuel[elevation <= 0.5] = mb.FUEL_WATER               # 바다(고도 0)는 물
     write_asc(folder / "fuel.asc", fuel, mb.CELL_SIZE_M, "{:d}")
 
     info = mb.read_info(mountain_id)
-    info["forest_source"] = {"file": shp_path.name, "field": cf, "imported": str(date.today()),
-                             "covered_pct": round(100.0 * covered / fuel.size, 1),
+    info["forest_source"] = {"files": [p.name for p in files], "field": ", ".join(sorted(fields)),
+                             "imported": str(date.today()),
+                             "covered_pct": round(100.0 * float(covered.mean()), 1),
                              "cells_by_code": dict(sorted(counts.items())), "unknown_codes": sorted(unknown)}
     mb.write_info(mountain_id, info)
     mb.write_scenario(mountain, tuple(info["ignition"]))
@@ -776,9 +827,12 @@ def main() -> None:
     p_trails.add_argument("--name-field", help="지점 이름 필드 (자동 찾기 대신)")
     p_trails.add_argument("--type-field", help="지점 종류 필드 (자동 찾기 대신)")
 
+    p_sheets = sub.add_parser("sheets", help="산마다 필요한 1:5,000 임상도 도엽 번호")
+    p_sheets.add_argument("--id", help="산 id (생략하면 모든 산)")
+
     p_forest = sub.add_parser("forest", help="임상도 → fuel.asc")
-    p_forest.add_argument("--id", required=True, help="산 id (mountains.json)")
-    p_forest.add_argument("--shp", required=True, type=Path, help="임상도 다각형 SHP")
+    p_forest.add_argument("--id", help="산 id (생략하면 파일과 겹치는 모든 산에 반영)")
+    p_forest.add_argument("--shp", required=True, type=Path, nargs="+", help="임상도 SHP (도엽 여러 개 가능)")
     p_forest.add_argument("--field", help="임종 코드 필드 (기본: FRTP_CD 자동 찾기)")
     p_forest.add_argument("--fuel-map", type=Path, default=FUEL_MAP_FILE, help="임종 코드 → 연료 코드 표")
 
@@ -795,11 +849,27 @@ def main() -> None:
             r = import_trails(args.id, args.lines, args.spots, args.crs, args.encoding, args.name_field, args.type_field)
             print(f"등산로 반영: 노드 {r['nodes']}개(지점 이름 {r['spots_used']}개), 간선 {r['edges']}개, "
                   f"총 {r['length_km']} km, 등산객 {r['hikers']}팀 → data/mountains/{args.id}/trails.txt")
+        elif args.command == "sheets":
+            for mid in ([args.id] if args.id else [m["id"] for m in mb.load_registry()]):
+                sheets = sheets_for_mountain(mid)
+                print(f"{mb.find_mountain(mid)['name']} ({mid}): 도엽 {len(sheets)}장\n  " + " ".join(sheets))
         else:
-            r = import_forest(args.id, args.shp, args.crs, args.encoding, args.field, args.fuel_map)
-            print(f"임상도 반영: 지도의 {r['covered_pct']}% 를 덮음, 임종 코드별 칸 수 {r['cells_by_code']}"
-                  + (f", 표에 없는 코드(건너뜀) {r['unknown_codes']}" if r["unknown_codes"] else "")
-                  + f" → data/mountains/{args.id}/fuel.asc")
+            ids = [args.id] if args.id else [m["id"] for m in mb.load_registry()]
+            applied = 0
+            for mid in ids:
+                try:
+                    r = import_forest(mid, args.shp, args.crs, args.encoding, args.field, args.fuel_map)
+                except ValueError as error:
+                    if args.id:
+                        raise
+                    continue                     # 산을 지정하지 않았으면 겹치지 않는 산은 조용히 건너뜀
+                applied += 1
+                print(f"{mid}: 임상도 반영 — 지도의 {r['covered_pct']}% 를 덮음 (도엽 {len(r['files'])}장), "
+                      f"임종 코드별 칸 수 {r['cells_by_code']}"
+                      + (f", 표에 없는 코드(건너뜀) {r['unknown_codes']}" if r["unknown_codes"] else "")
+                      + ("" if r["covered_pct"] >= 99 else ", 나머지는 [임시] 규칙"))
+            if not applied:
+                raise ValueError("넣은 임상도 파일과 겹치는 산이 없음 (필요한 도엽: forest_import.py sheets)")
     except (ValueError, KeyError, FileNotFoundError) as error:
         print(f"[오류] {error}", file=sys.stderr)
         sys.exit(1)

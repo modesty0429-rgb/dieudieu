@@ -271,9 +271,12 @@ def mountain_sandbox_import(tmp: Path) -> None:
         forest = fi.import_forest("bukhansan", shp / "test_forest.shp",
                                   fuel_map_path=root / "mountains" / "forest_fuel_map.csv")
         fuel = read_asc(root / "mountains" / "bukhansan" / "fuel.asc")[1]
-        check("임상도 변환: 임종 코드 → 연료 코드, 구멍·비산림",
+        rule = mb.rule_based_fuel(read_asc(root / "mountains" / "bukhansan" / "elev.asc")[1])
+        check("임상도 변환: 임종 코드 → 연료 코드, 구멍, 덮지 않은 곳은 [임시] 규칙",
               fuel[100, 200] == 3 and fuel[100, 100] == 4 and fuel[230, 120] == 5 and fuel[216, 83] == 1
-              and fuel[180, 200] == 2 and fuel[260, 260] == 9, str(forest))
+              and fuel[180, 200] == 2 and fuel[260, 260] == rule[260, 260], str(forest))
+        from services.forest_import import sheet_number
+        check("1:5,000 도엽 번호 계산", sheet_number(37.09, 128.69) == "37815068" and sheet_number(37.09, 128.76) == "37816061")
         scenario = root / "scenarios" / "mountain_bukhansan.ini"
         code, out = run_engine(scenario, "evac", tmp / "sandbox_out")
         check("변환한 데이터로 엔진 대피 계산", code == 0 and "등산객 읽기 완료: 5팀" in out, out[-300:])
