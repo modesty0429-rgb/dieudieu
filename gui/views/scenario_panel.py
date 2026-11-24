@@ -282,9 +282,20 @@ class ScenarioPanel(QScrollArea):
         self.stop_button = QPushButton("중지")
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self.stop_requested.emit)
+        self.reset_button = QPushButton("↺ 초기화")
+        self.reset_button.setToolTip("시뮬레이션 결과를 지우고, 이 산의 처음 설정(발화 지점·기상·등산객 팀 등)으로 되돌립니다.")
+        self.reset_button.clicked.connect(self.reset_all)
         layout.addWidget(self.run_button, 1)
         layout.addWidget(self.stop_button)
+        layout.addWidget(self.reset_button)
         return box
+
+    def reset_all(self) -> None:
+        """
+        초기화: 지금 고른 산의 시나리오 파일 값으로 모든 입력을 되돌리고(발화 지점·기상·진화 자원·계절·낮밤),
+        scenario_changed 를 보내 지도에서 결과를 지우고 등산객 팀도 처음 배치로 다시 읽게 한다.
+        """
+        self._on_scenario_combo()
 
     # ------------------------------------------------------------------
     # 값 읽기·쓰기
@@ -309,6 +320,7 @@ class ScenarioPanel(QScrollArea):
     def set_running(self, running: bool) -> None:
         self.run_button.setEnabled(not running)
         self.stop_button.setEnabled(running)
+        self.reset_button.setEnabled(not running)          # 실행 중에는 초기화하지 않음
         self.run_button.setText("실행 중..." if running else "🔥 시뮬레이션 실행")
 
     def _load_scenario_values(self, path: Path) -> None:
