@@ -8,3 +8,4 @@ pyshp>=2.3        # (선택) 산림청 SHP 변환 — forest_import.py 를 쓸 �
 pyproj>=3.6       # (선택) 좌표계 변환 — forest_import.py
 pillow>=10.0      # 실제 산 지형 타일 읽기·임상도 다각형 칠하기
 pyarrow>=15       # (선택) OpenStreetMap 등산로 받기 — overture_trails.py 를 쓸 때만
+qrcode>=7.4       # (선택) 휴대폰으로 보내기 창의 QR 코드 — 없으면 링크만 보여 줌

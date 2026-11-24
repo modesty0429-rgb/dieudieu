@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b1120">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>산불 대피 안내</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <select id="mountain" aria-label="산 고르기"></select>
+    <div class="top-right">
+      <span id="clock" class="chip">--:--</span>
+      <span id="net" class="chip">온라인</span>
+    </div>
+  </header>
+
+  <main class="map-wrap">
+    <canvas id="map" aria-label="산 지도"></canvas>
+    <div id="tap-hint" class="tap-hint" hidden></div>
+    <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">계산 중…</span></div>
+    <div id="toast" class="toast" hidden></div>
+  </main>
+
+  <section class="sheet">
+    <div id="alert" class="alert lvl-none">
+      <div class="alert-head">
+        <span id="alert-level">산불 정보 없음</span>
+        <span id="alert-remaining"></span>
+      </div>
+      <div id="alert-advice">불 정보를 받으면 휴대폰이 직접 계산해 대피 경로를 알려 줍니다.</div>
+    </div>
+    <div class="info">
+      <div id="info-me">📍 내 위치: 아직 모름</div>
+      <div id="info-route"></div>
+      <div id="info-weather"></div>
+      <div id="info-sun"></div>
+    </div>
+    <nav class="actions">
+      <button id="btn-gps">📍 내 위치</button>
+      <button id="btn-fire">🔥 불 정보</button>
+      <button id="btn-demo">▶ 데모</button>
+      <button id="btn-more">⚙ 설정</button>
+    </nav>
+  </section>
+
+  <!-- 불 정보 받기 -->
+  <dialog id="dlg-fire">
+    <form method="dialog">
+      <h2>🔥 불 정보 받기</h2>
+      <p class="dim">관제(PC 프로그램)나 문자로 받은 링크를 붙여 넣거나, 연기가 보이는 곳을 지도에서 찍으세요. 받은 뒤 계산은 인터넷 없이 휴대폰에서 합니다.</p>
+      <label>받은 링크·문자
+        <textarea id="fire-text" rows="3" placeholder="https://…/mobile/#m=bukhansan&amp;fire=37.645,126.960&amp;t=…"></textarea>
+      </label>
+      <div class="row">
+        <button type="button" id="fire-apply">링크로 계산</button>
+        <button type="button" id="fire-pick">🗺 지도에서 찍기</button>
+      </div>
+      <fieldset>
+        <legend>날씨 (지도에서 찍을 때)</legend>
+        <label class="check"><input type="checkbox" id="w-normal" checked> 모르면 그 계절 평년 날씨로 추정</label>
+        <div class="grid4">
+          <label>풍속 m/s<input type="number" id="w-speed" value="5" min="0" max="30" step="0.5"></label>
+          <label>풍향 °<input type="number" id="w-dir" value="270" min="0" max="359" step="5"></label>
+          <label>습도 %<input type="number" id="w-rh" value="30" min="5" max="100" step="5"></label>
+          <label>기온 ℃<input type="number" id="w-temp" value="15" min="-20" max="40" step="1"></label>
+        </div>
+      </fieldset>
+      <div class="row end"><button value="close">닫기</button></div>
+    </form>
+  </dialog>
+
+  <!-- 데모 (학교에서 시연할 때) -->
+  <dialog id="dlg-demo">
+    <form method="dialog">
+      <h2>▶ 데모 모드</h2>
+      <p class="dim">산에 있지 않을 때 시연하는 기능입니다. 실제 산에서는 GPS 위치를 그대로 씁니다.</p>
+      <div class="col">
+        <button type="button" id="demo-me">🗺 지도에서 내 위치 찍기</button>
+        <button type="button" id="demo-fire">🔥 예시 산불 받기 (지금 발화, 봄 건조한 날씨)</button>
+        <button type="button" id="demo-link">🔗 예시 산불 링크 복사 (다른 휴대폰으로 보내기)</button>
+      </div>
+      <label>시간 빠르게
+        <select id="demo-speed">
+          <option value="1">실제 시간 (×1)</option>
+          <option value="10">×10</option>
+          <option value="30" selected>×30 (1초 = 30초)</option>
+          <option value="60">×60 (1초 = 1분)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="demo-follow"> 안내대로 걸어서 대피하기 (내 위치가 경로를 따라 움직임)</label>
+      <div class="row end"><button value="close">닫기</button></div>
+    </form>
+  </dialog>
+
+  <!-- 설정 -->
+  <dialog id="dlg-more">
+    <form method="dialog">
+      <h2>⚙ 설정</h2>
+      <div class="grid2">
+        <label>걷는 속도 (평지 km/h)<input type="number" id="set-speed" value="3.5" min="1" max="8" step="0.5"></label>
+        <label>일행 인원<input type="number" id="set-people" value="2" min="1" max="50"></label>
+      </div>
+      <div class="col">
+        <button type="button" id="set-notify">🔔 경보 알림 허용</button>
+        <button type="button" id="set-offline">⬇ 이 산 오프라인 저장</button>
+      </div>
+      <p id="set-status" class="dim"></p>
+      <details>
+        <summary>이 앱은 어떻게 동작하나요?</summary>
+        <p class="dim">지형·숲·등산로 지도와 산불 계산 엔진(C 언어로 만든 것을 WebAssembly 로 바꾼 것)이 휴대폰에 저장되어 있습니다.
+          GPS 는 인공위성 신호라 인터넷 없이도 위치를 알 수 있습니다. 불이 난 곳과 날씨(숫자 몇 개)만 받으면
+          불이 언제 어디로 올지, 어느 길로 피해야 하는지를 휴대폰이 직접 계산합니다.
+          교육용 시뮬레이션이므로 실제 재난 때는 반드시 공식 안내(재난문자·119)를 따르세요.</p>
+      </details>
+      <div class="row end"><button value="close">닫기</button></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "id": "odaesan_geumsan",
+  "name": "오대산 (충남 금산)",
+  "peak": "정상",
+  "center": [
+    36.1331,
+    127.3467
+  ],
+  "width": 300,
+  "height": 300,
+  "cell_m": 30.0,
+  "earth_radius_m": 6371008.8,
+  "summit_latlon": [
+    36.1313,
+    127.3392
+  ],
+  "summit_cell": [
+    127,
+    156
+  ],
+  "winter_snow_line_m": 550.0,
+  "elevation_range_m": [
+    104.2,
+    846.0
+  ],
+  "files": {
+    "elevation": "../data/mountains/odaesan_geumsan/elev.asc",
+    "fuel": "../data/mountains/odaesan_geumsan/fuel.asc",
+    "trails": "../data/mountains/odaesan_geumsan/trails.txt",
+    "scenario": "../data/scenarios/mountain_odaesan_geumsan.ini"
+  }
+}

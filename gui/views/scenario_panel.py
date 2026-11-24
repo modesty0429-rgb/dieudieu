@@ -386,7 +386,7 @@ class ScenarioPanel(QScrollArea):
             o.set("moisture", "live_moisture_factor", preset.live_moisture_factor)
             o.set("moisture", "initial_dead_moisture_pct", preset.initial_dead_moisture_pct)
             o.set("season", "season", preset.key)                 # (9단계) 계절 날씨·눈·지도 색
-            o.set("season", "snow_line_m", float(preset.snow_line_m))
+            o.set("season", "snow_line_m", self.snow_line_for(preset))
         return o
 
     # ------------------------------------------------------------------
@@ -407,6 +407,22 @@ class ScenarioPanel(QScrollArea):
         self.mountain_note.setText(text)
         self.mountain_note.setVisible(bool(text))
 
+    def snow_line_for(self, preset: SeasonPreset) -> float:
+        """
+        이 산의 눈 경계: 겨울이면 시나리오의 winter_snow_line_m (산마다 다름: 지리산 1,100 m, 한라산 1,300 m …),
+        없으면 프리셋 값(600 m). 눈이 없는 계절은 0.
+        """
+        if preset.snow_line_m <= 0:
+            return 0.0
+        ini = read_ini(self.current_scenario())
+        return ini.getfloat("season", "winter_snow_line_m", fallback=float(preset.snow_line_m))
+
+    def emit_season_preview(self) -> None:
+        """산을 바꿨을 때 지금 고른 계절로 지도 색·눈을 다시 보여 준다."""
+        preset = self._current_preset()
+        if preset is not None:
+            self.season_preview_changed.emit(preset.key, self.snow_line_for(preset))
+
     def _on_season_changed(self) -> None:
         """
         계절을 고르면
@@ -423,7 +439,8 @@ class ScenarioPanel(QScrollArea):
             season, snow = season_from_ini(ini, start)
             self.season_preview_changed.emit(season, snow)
             return
-        snow = f", 해발 {preset.snow_line_m:g} m 이상 눈" if preset.snow_line_m > 0 else ""
+        line = self.snow_line_for(preset)
+        snow = f", 이 산은 해발 {line:g} m 이상 눈" if line > 0 else ""
         self.season_note.setText(f"{preset.note}  (수분 배율 {preset.live_moisture_factor:g}, "
                                  f"초기 연료 수분 {preset.initial_dead_moisture_pct:g}%{snow}, {preset.date})")
         self.wind_speed.set_value(preset.wind_speed_ms)
@@ -434,7 +451,7 @@ class ScenarioPanel(QScrollArea):
             self.weather_season_radio.setChecked(True)
         if preset.date:
             self.daylight_group.set_date(preset.date)
-        self.season_preview_changed.emit(preset.key, float(preset.snow_line_m))
+        self.season_preview_changed.emit(preset.key, line)
 
     def _open_weather_dialog(self) -> None:
         mid = mountain_builder.scenario_mountain_id(self.current_scenario())

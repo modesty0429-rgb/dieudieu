@@ -13,6 +13,7 @@
           낮/밤 (일몰 시각, 밤 헬기 출동 중지, 밤 보행 기록, 잘못된 설정값)
           사계절 (여름이 봄보다 습하고 덜 탐, 겨울 눈 위로는 안 탐, 눈 위 발화·잘못된 계절은 오류)
           등산객 팀 (10팀, 등산로 가운데 찍은 위치에서 출발)
+  [휴대폰] WebAssembly 엔진·발화 정보 링크·등산로 붙이기 (node tools/mobile_test.mjs), PC 링크 → 휴대폰 좌표
   [Python] 기상청 격자 변환, 기상 응답 해석, 시나리오 파일 쓰기, 결과 읽기, 리포트 만들기,
            계절 지도 색
   [과거 날씨] 가까운 관측소, 기간 검사, ASOS 응답 해석·빈 값 채우기, 저장 → 엔진 실행
@@ -28,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import subprocess
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -266,18 +268,106 @@ def test_season(tmp: Path) -> None:
         check("눈 덮인 곳(해발 600 m 이상)으로는 불이 번지지 않음", burned_on_snow == 0,
               f"눈 위에 탄 셀 {burned_on_snow}개")
         check("결과 읽기: 지도에 계절·눈 경계 반영", result.map.season == "winter" and result.map.snow_line_m == line)
-        # 눈 위 발화 지점은 오류
+        # 눈 위 발화 지점은 가장 가까운 눈 없는 숲으로 옮겨서 실행
         y, x = (int(v) for v in np.argwhere(snowy)[0])
-        bad = write_edge_scenario(tmp, "season_snow_ignition",
-                                  f"[ignition]\npoint1 = {x}, {y}\n[season]\nseason = winter\n")
-        code, text = run_engine(bad, "run", tmp / "season_snow_ignition")
-        check("눈 덮인 곳에 발화 지점을 두면 오류", code == 1 and "눈" in text, f"종료 코드 {code}")
+        moved = write_edge_scenario(tmp, "season_snow_ignition",
+                                    f"[ignition]\npoint1 = {x}, {y}\n[season]\nseason = winter\n")
+        code, text = run_engine(moved, "run", tmp / "season_snow_ignition")
+        ok = code == 0 and "옮김" in text
+        if ok:
+            moved_summary = json.loads((tmp / "season_snow_ignition" / "summary.json").read_text(encoding="utf-8"))
+            point = moved_summary["ignitions"][0]
+            ok = result.map.elevation[point["y"], point["x"]] < line
+        check("눈 덮인 곳의 발화 지점은 눈 아래 숲으로 옮겨 실행", ok, f"종료 코드 {code}")
     except (OSError, KeyError, ValueError, IndexError) as error:
         check("겨울 결과 읽기", False, str(error))
 
     bad = write_edge_scenario(tmp, "bad_season", "[ignition]\npoint1 = 120, 80\n[season]\nseason = monsoon\n")
     code, text = run_engine(bad, "run", tmp / "bad_season")
     check("잘못된 계절 이름은 오류 (season = monsoon)", code == 1 and "season" in text, f"종료 코드 {code}")
+
+
+def test_mountain_winter(tmp: Path) -> None:
+    """실제 산 6곳 모두 겨울로 실행된다 (산마다 다른 눈 경계, 눈 위 발화 지점은 옮김)"""
+    import json
+    print("\n[엔진] 실제 산 겨울 (산마다 눈 경계)")
+    results = []
+    for path in sorted(SCENARIOS.glob("mountain_*.ini")):
+        scenario = SCENARIOS / f"zz_test_winter_{path.stem}.ini"
+        scenario.write_text(path.read_text(encoding="utf-8") +
+                            "\n[weather]\nmode = season\n[time]\nduration_min = 120\n"
+                            "[season]\nseason = winter\n", encoding="utf-8")
+        try:
+            code, _text = run_engine(scenario, "run", tmp / scenario.stem)
+        finally:
+            scenario.unlink()
+        if code != 0:
+            results.append((path.stem, None))
+            continue
+        season = json.loads((tmp / scenario.stem / "summary.json").read_text(encoding="utf-8"))["season"]
+        results.append((path.stem, season["snow_line_m"]))
+    failed = [name for name, line in results if line is None]
+    check("실제 산 6곳 모두 겨울로 실행됨", len(results) == 6 and not failed, f"실패: {failed}")
+    lines = dict(results)
+    check("산마다 눈 경계가 다름 (지리산 > 북한산)",
+          (lines.get("mountain_jirisan") or 0) > (lines.get("mountain_bukhansan") or 0) > 0, str(lines))
+
+
+def test_mobile(tmp: Path) -> None:
+    """(11단계) 휴대폰 앱: 같은 C 코드를 WebAssembly 로 돌려 PC 와 같은 결과인지, PC 가 만든 링크를 휴대폰이 읽는지"""
+    import shutil
+    import subprocess
+    print("\n[휴대폰] 오프라인 대피 안내 앱 (11단계)")
+    ROOT = app_config.PROJECT_ROOT
+    node = shutil.which("node")
+    wasm = ROOT / "mobile" / "engine" / "wildfire.wasm"
+    if node is None or not wasm.exists():
+        print("  [건너뜀] node 또는 mobile/engine/wildfire.wasm 이 없음 (tools/build_wasm.sh)")
+        return
+    out = subprocess.run([node, str(ROOT / "tools" / "mobile_test.mjs")], capture_output=True, text=True,
+                         encoding="utf-8", timeout=300)
+    for line in out.stdout.splitlines():
+        if line.strip().startswith(("[통과]", "[실패]")):
+            check("휴대폰 " + line.strip()[5:].strip(), line.strip().startswith("[통과]"))
+
+    from datetime import datetime
+    from services import mobile_link
+    message = mobile_link.build_message(SCENARIOS / "mountain_bukhansan.ini", 98, 142,
+                                        datetime(2026, 4, 5, 13, 0), (6, 270, 25, 18))
+    script = ("const R=process.argv[1];const {decodeFire}=await import(R+'/mobile/js/fireinfo.js');"
+              "const {latLonToCell}=await import(R+'/mobile/js/geo.js');const fs=await import('node:fs');"
+              "const meta=JSON.parse(fs.readFileSync(R+'/mobile/assets/bukhansan/meta.json','utf8'));"
+              "const f=decodeFire(process.argv[2]);const c=latLonToCell(meta,f.lat,f.lon);"
+              "console.log(Math.round(c.x),Math.round(c.y),f.time.getHours(),f.weather.windDir);")
+    rt = subprocess.run([node, "--input-type=module", "-e", script, str(ROOT), message.sms_text()],
+                        capture_output=True, text=True, timeout=60)
+    check("PC 가 만든 문자·링크 → 휴대폰이 같은 발화 칸·시각·바람으로 읽음", rt.stdout.split() == ["98", "142", "13", "270"],
+          rt.stdout.strip() or rt.stderr[-200:])
+
+    # WebAssembly 엔진과 PC 엔진이 같은 결과인지 (같은 C 코드)
+    run_wasm = ("import fs from 'node:fs';const R=process.argv[1];"
+                "const {runEngine}=await import(R+'/mobile/js/engine_core.js');"
+                "const m=await WebAssembly.compile(fs.readFileSync(R+'/mobile/engine/wildfire.wasm'));"
+                "const rd=(p)=>fs.readFileSync(R+'/'+p);"
+                "const files={'scenario.ini':rd('data/scenarios/spring_dry_base.ini'),'fuel_models.csv':rd('data/scenarios/fuel_models.csv'),"
+                "'virtual_mountain_elev.asc':rd('data/maps/virtual_mountain_elev.asc'),'virtual_mountain_fuel.asc':rd('data/maps/virtual_mountain_fuel.asc'),"
+                "'virtual_trails.txt':rd('data/trails/virtual_trails.txt'),'virtual_hikers.txt':rd('data/trails/virtual_hikers.txt'),"
+                "'sample_spring_dry.csv':rd('data/weather/sample_spring_dry.csv')};"
+                "const r=await runEngine(m,files,['--mode','evac']);fs.writeFileSync(process.argv[2],r.outputs['arrival_time.csv']||'');")
+    ini = (SCENARIOS / "spring_dry_base.ini").read_text(encoding="utf-8")
+    flat = re.sub(r"=\s*(\.\./)+[\w/]*?([\w.]+\.(asc|txt|csv))", r"= \2", ini)
+    work = tmp / "wasm_compare"
+    work.mkdir(exist_ok=True)
+    (work / "spring_dry_base.ini").write_text(flat, encoding="utf-8")
+    script2 = run_wasm.replace("rd('data/scenarios/spring_dry_base.ini')", f"fs.readFileSync({str(work / 'spring_dry_base.ini')!r})")
+    wasm_csv = work / "wasm_arrival.csv"
+    subprocess.run([node, "--input-type=module", "-e", script2, str(ROOT), str(wasm_csv)],
+                   capture_output=True, text=True, timeout=120)
+    code, _ = run_engine(SCENARIOS / "spring_dry_base.ini", "evac", work / "native")
+    native = (work / "native" / "arrival_time.csv")
+    check("휴대폰(WebAssembly) 엔진 = PC 엔진 (불 도착 시각 9만 칸이 모두 같음)",
+          code == 0 and wasm_csv.exists() and native.exists()
+          and wasm_csv.read_text().strip() == native.read_text().strip())
 
 
 def test_hiker_teams(tmp: Path) -> None:
@@ -572,7 +662,9 @@ def main() -> int:
         test_line_endings(tmp)
         test_daylight(tmp)
         test_season(tmp)
+        test_mountain_winter(tmp)
         test_hiker_teams(tmp)
+        test_mobile(tmp)
         test_python_helpers(tmp)
         test_real_mountains(tmp)
         test_past_weather(tmp)

@@ -140,8 +140,12 @@ class MainWindow(QMainWindow):
         folder_action.triggered.connect(self._open_output_folder)
         quit_action = QAction("종료", self)
         quit_action.triggered.connect(self.close)
+        mobile_action = QAction("📱 휴대폰으로 발화 정보 보내기 (링크·QR)...", self)
+        mobile_action.triggered.connect(self._open_mobile_dialog)
         file_menu.addAction(open_action)
         file_menu.addAction(folder_action)
+        file_menu.addSeparator()
+        file_menu.addAction(mobile_action)
         file_menu.addSeparator()
         file_menu.addAction(quit_action)
 
@@ -206,6 +210,7 @@ class MainWindow(QMainWindow):
         self.preview = preview
         self.panel.hiker_group.load(preview.nodes, preview.edges, preview.hikers)   # (10단계) 등산객 팀
         self._show_preview(preview)
+        self.panel.emit_season_preview()          # 계절을 골라 둔 채 산을 바꿔도 그 산의 계절 지도로
         self.status_bar.show_message(f"시나리오 '{preview.name}' 지도 ({preview.width}×{preview.height}칸)")
 
     def _show_preview(self, preview, keep_view: bool = False) -> None:
@@ -251,6 +256,11 @@ class MainWindow(QMainWindow):
     def _on_pick_mode(self, on: bool) -> None:
         if on:
             self.status_bar.show_message("📍 지도의 등산로(점선)를 클릭해 팀 위치를 정하세요. 발화 지점은 바뀌지 않습니다.")
+
+    def _open_mobile_dialog(self) -> None:
+        """(11단계) 관제: 지금 발화 지점·날씨를 휴대폰 앱 링크·QR 로"""
+        from views.mobile_dialog import MobileDialog
+        MobileDialog(self.panel, self).exec()
 
     def _on_season_preview(self, season, snow_line_m: float) -> None:
         """(9단계) 왼쪽에서 계절을 고르면 바로 지도 색을 바꿔 보여 준다. (다음 실행 결과도 같은 계절)"""
@@ -308,7 +318,14 @@ class MainWindow(QMainWindow):
         self.panel.set_running(False)
         if code == 0 and result_path:
             self.status_bar.progress.setValue(100)
-            self.load_result_file(Path(result_path))
+            before = (self.panel.ignition_x.value(), self.panel.ignition_y.value())
+            if self.load_result_file(Path(result_path)) and self.result.map.ignitions:
+                x, y = self.result.map.ignitions[0][0], self.result.map.ignitions[0][1]
+                if (x, y) != before:      # 겨울에 눈 위 발화 지점을 엔진이 눈 아래 숲으로 옮긴 경우
+                    self.panel.set_ignition(x, y)
+                    self.status_bar.show_message(
+                        f"발화 지점 {before}이 눈 덮인 곳이라 가장 가까운 눈 없는 숲 ({x}, {y})으로 옮겨 계산했습니다.",
+                        theme.SUCCESS)
         else:
             self.status_bar.show_message(
                 f"엔진이 오류로 끝났습니다 (종료 코드 {code}). '엔진 로그' 탭에서 [ERROR] 줄을 확인하세요.",
