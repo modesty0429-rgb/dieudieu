@@ -426,7 +426,8 @@ class ScenarioPanel(QScrollArea):
 
     def _open_weather_dialog(self) -> None:
         mid = mountain_builder.scenario_mountain_id(self.current_scenario())
-        dialog = WeatherDialog(self, mountain_builder.read_info(mid).get("name") if mid else None)
+        info = mountain_builder.read_info(mid) if mid else {}
+        dialog = WeatherDialog(self, mountain_builder.display_name(info) if info else None)
         if dialog.exec() and dialog.selected_path is not None and dialog.rows:
             self.set_weather_override((dialog.selected_path, f"{dialog.rows[0].time:%Y-%m-%d %H:%M}"))
 

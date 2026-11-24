@@ -18,7 +18,7 @@ SCENARIO_DIR = DATA_DIR / "scenarios"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 CONFIG_DIR = PROJECT_ROOT / "config"
 
-DEFAULT_SCENARIO = SCENARIO_DIR / "spring_dry_base.ini"
+DEFAULT_SCENARIO = SCENARIO_DIR / "mountain_bukhansan.ini"     # GUI 를 처음 열 때 고르는 산
 SEASON_PRESET_FILE = SCENARIO_DIR / "season_presets.ini"
 GUI_SCENARIO_NAME = "gui_custom"            # GUI에서 바꾼 설정으로 만드는 시나리오 이름
 
@@ -58,5 +58,14 @@ def resolve_engine_path(path_text: str) -> Path:
 
 def list_scenarios() -> list[Path]:
     """GUI에서 고를 수 있는 시나리오 목록 (테스트용·GUI 생성 파일 제외)."""
-    files = sorted(SCENARIO_DIR.glob("*.ini"))
-    return [f for f in files if f.stem != GUI_SCENARIO_NAME and f.name != SEASON_PRESET_FILE.name]
+    # 실제 산(mountain_<id>.ini)만, data/mountains/mountains.json 의 순서대로.
+    # 처음에 만든 가상 산 시나리오(spring_dry_base 등)는 자동 테스트·명령줄 예시용으로만 남겨 두고 목록에서는 뺀다.
+    import json
+
+    order: list[str] = []
+    registry = DATA_DIR / "mountains" / "mountains.json"
+    if registry.exists():
+        order = [m["id"] for m in json.loads(registry.read_text(encoding="utf-8"))["mountains"]]
+    files = list(SCENARIO_DIR.glob("mountain_*.ini"))
+    rank = {f"mountain_{mid}": i for i, mid in enumerate(order)}
+    return sorted(files, key=lambda f: (rank.get(f.stem, len(rank)), f.stem))

@@ -389,12 +389,18 @@ def scenario_mountain_id(scenario_path: Path) -> str | None:
     return stem[len("mountain_"):] if stem.startswith("mountain_") else None
 
 
+def display_name(mountain: dict) -> str:
+    """화면에 보일 산 이름: '설악산 (대청봉)', 정상 이름이 따로 없으면 '오대산 (충남 금산)'"""
+    name = mountain["name"].replace("(", " (")
+    return name if mountain.get("peak") in (None, "", "정상") else f"{name} ({mountain['peak']})"
+
+
 def scenario_label(scenario_path: Path) -> str:
-    """시나리오 고르기 목록에 보일 이름 (실제 산은 '실제 산: 설악산 (대청봉)')"""
+    """시나리오 고르기 목록에 보일 이름 (예: '설악산 (대청봉)')"""
     mid = scenario_mountain_id(scenario_path)
     info = read_info(mid) if mid else {}
     if info:
-        return f"실제 산: {info['name']} ({info['peak']})"
+        return display_name(info)
     return Path(scenario_path).stem
 
 
@@ -421,7 +427,7 @@ def data_status_text(scenario_path: Path) -> str:
 def weather_presets() -> dict[str, tuple[float, float]]:
     """기상청 예보 받기 위치 목록 {'설악산 (대청봉)': (위도, 경도)} — mountains.json 에서"""
     try:
-        return {f"{m['name']} ({m['peak']})": tuple(m.get("summit") or m["center"]) for m in load_registry()}
+        return {display_name(m): tuple(m.get("summit") or m["center"]) for m in load_registry()}
     except (OSError, ValueError, KeyError):
         return {}
 
