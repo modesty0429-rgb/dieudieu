@@ -89,7 +89,7 @@ static int push_track_point(Hiker *hiker, int *capacity, double time_min, int x,
  *   - 출발 후: 경로의 셀을 하나씩 지나며 Tobler 속도로 시각 계산
  *   - 불이 이미 도착한 셀을 만나면 그 앞에서 멈추고 고립(HIKER_TRAPPED)
  *   - 끝까지 가면 대피 완료(HIKER_SAFE)
- * 대피할 필요가 없는 등산객(depart_time 없음)은 시작 위치 한 점만 기록한다.
+ * 출발 시각이 정해지지 않은 등산객(depart_time 없음)은 시작 위치 한 점만 기록한다.
  * 성공 1, 메모리 부족 0
  */
 int build_hiker_track(const Scenario *sc, Hiker *hiker)
@@ -106,7 +106,7 @@ int build_hiker_track(const Scenario *sc, Hiker *hiker)
         return 0;
     }
     if (!time_is_set(hiker->depart_time_min)) {
-        hiker->status = HIKER_HIKING;          /* 대피할 필요 없음 */
+        hiker->status = HIKER_HIKING;          /* 아직 출발 시각을 정하지 않음 */
         return 1;
     }
     if (!hiker->route.found) {

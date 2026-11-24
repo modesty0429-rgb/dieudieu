@@ -26,7 +26,7 @@ const char *hiker_status_korean(HikerStatus status);
 
 AlertLevel alert_level_from_remaining(const AlertSettings *settings, double remaining_min);
 double     remaining_time_at(const DangerMap *alert_map, double x, double y, double time_min);
-double     compute_departure_time(const Scenario *sc, const DangerMap *alert_map, const Hiker *hiker);
+double     compute_departure_time(const Scenario *sc);
 AlertLevel assess_alert_level(const Scenario *sc, const Hiker *hiker, const DangerMap *alert_map,
                               double time_min, double *remaining_min);
 int        hiker_is_at_risk(const Scenario *sc, const Hiker *hiker);

@@ -72,10 +72,10 @@
       "PMNTN_SPOT_오대산_447102201.shp"
     ],
     "imported": "2026-11-24",
-    "nodes": 4,
-    "edges": 3,
+    "nodes": 3,
+    "edges": 2,
     "length_km": 4.2,
-    "spots_used": 4,
+    "spots_used": 3,
     "hikers": 2,
     "gaps_bridged": 0,
     "provider": "산림청"

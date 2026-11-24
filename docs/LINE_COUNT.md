@@ -4,9 +4,9 @@
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
-| C | 9997 | 약 8,000 | 125% |
-| Python | 8559 | 약 4,000 | 214% |
-| **합계** | **18556** | **약 12,000** | **155%** |
+| C | 9982 | 약 8,000 | 125% |
+| Python | 9396 | 약 4,000 | 235% |
+| **합계** | **19378** | **약 12,000** | **161%** |
 
 ## C
 
@@ -42,8 +42,8 @@
 | `c_core/src/console_view.c` | 544 | 442 | 57 | 45 |
 | `c_core/src/daylight.c` | 236 | 164 | 47 | 25 |
 | `c_core/src/dynarray.c` | 90 | 62 | 17 | 11 |
-| `c_core/src/evac_alert.c` | 284 | 202 | 53 | 29 |
-| `c_core/src/evac_route.c` | 401 | 277 | 83 | 41 |
+| `c_core/src/evac_alert.c` | 276 | 193 | 54 | 29 |
+| `c_core/src/evac_route.c` | 394 | 271 | 83 | 40 |
 | `c_core/src/fuel_moisture.c` | 281 | 196 | 57 | 28 |
 | `c_core/src/grid.c` | 183 | 127 | 34 | 22 |
 | `c_core/src/hiker.c` | 213 | 149 | 48 | 16 |
@@ -65,7 +65,7 @@
 | `c_core/src/trail_io.c` | 697 | 535 | 97 | 65 |
 | `c_core/src/util.c` | 527 | 380 | 91 | 56 |
 | `c_core/src/weather.c` | 259 | 188 | 46 | 25 |
-| **합계** | **9997** | **7344** | **1636** | **1017** |
+| **합계** | **9982** | **7329** | **1637** | **1016** |
 
 ## Python
 
@@ -77,7 +77,7 @@
 | `gui/services/app_config.py` | 71 | 37 | 18 | 16 |
 | `gui/services/daylight_render.py` | 92 | 54 | 21 | 17 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/forest_import.py` | 1124 | 826 | 143 | 155 |
+| `gui/services/forest_import.py` | 1154 | 845 | 149 | 160 |
 | `gui/services/hiker_setup.py` | 230 | 151 | 40 | 39 |
 | `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
 | `gui/services/mobile_link.py` | 76 | 49 | 10 | 17 |
@@ -93,7 +93,7 @@
 | `gui/theme.py` | 188 | 155 | 19 | 14 |
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/views/daylight_group.py` | 94 | 65 | 12 | 17 |
-| `gui/views/evacuation_view.py` | 214 | 176 | 11 | 27 |
+| `gui/views/evacuation_view.py` | 205 | 167 | 11 | 27 |
 | `gui/views/hiker_group.py` | 239 | 175 | 28 | 36 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
 | `gui/views/main_window.py` | 360 | 282 | 36 | 42 |
@@ -105,8 +105,12 @@
 | `gui/views/stats_view.py` | 226 | 181 | 18 | 27 |
 | `gui/views/suppression_view.py` | 226 | 180 | 16 | 30 |
 | `gui/views/weather_dialog.py` | 246 | 205 | 16 | 25 |
+| `tools/_wasi-sdk/wasi-sdk-24.0-x86_64-linux/share/clang/clang-format-diff.py` | 193 | 146 | 31 | 16 |
+| `tools/_wasi-sdk/wasi-sdk-24.0-x86_64-linux/share/clang/clang-format-sublime.py` | 73 | 49 | 19 | 5 |
+| `tools/_wasi-sdk/wasi-sdk-24.0-x86_64-linux/share/clang/clang-format.py` | 168 | 95 | 58 | 15 |
+| `tools/_wasi-sdk/wasi-sdk-24.0-x86_64-linux/share/clang/clang-tidy-diff.py` | 382 | 241 | 96 | 45 |
 | `tools/build_mobile.py` | 84 | 59 | 10 | 15 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
 | `tools/run_tests.py` | 681 | 542 | 58 | 81 |
-| **합계** | **8559** | **6132** | **1173** | **1254** |
+| **합계** | **9396** | **6673** | **1383** | **1340** |

@@ -511,12 +511,17 @@ def boundary_side(node: Node, width: int = mb.GRID_SIZE, height: int = mb.GRID_S
     return min(distances, key=distances.get)
 
 
+LOW_EXIT_SHARE = 0.4          # 등산로 최저 고도 + 높이 차의 40% 이하만 '산 아래' 대피 목적지로 본다 [가정]
+
+
 def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mountain: dict) -> None:
     """
     이름·종류가 없는 노드를 규칙으로 채운다.
-      지도 경계에서 잘린 끝     → PARKING "지도경계(방향)"  [가정: 9 km 지도 밖은 안전 지역]
-      막다른 끝 중 '시종점' 지점이거나 낮은 곳 → PARKING "들머리"  [가정: 등산로 끝의 낮은 곳은 보통 들머리]
-      막다른 끝 중 높은 곳      → POINT
+      대피 목적지(PARKING)는 산 아래의 등산로 입구만 — 등산로 최저 고도 + 높이 차 × LOW_EXIT_SHARE 이하 [가정]
+      지도 경계에서 잘린 끝 중 낮은 곳 → PARKING "지도경계(방향)" (산 아래 도로·마을로 이어짐)
+      지도 경계에서 잘린 끝 중 높은 곳 → POINT "지도밖연결" (능선이 지도 밖으로 이어질 뿐, 안전한 곳이 아님)
+      막다른 끝 중 낮은 곳      → PARKING "들머리"   [가정: 등산로 끝의 낮은 곳은 보통 들머리]
+      막다른 끝 중 높은 곳      → POINT "끝지점"
       정상 위치 1 km 안의 가장 높은 노드 → SUMMIT 정상 이름 (지점 자료에 정상이 없을 때)
       나머지                    → JUNCTION "갈림길"
     """
@@ -525,7 +530,7 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
         degree[e.a] += 1
         degree[e.b] += 1
     node_elev = [float(elevation[n.y, n.x]) for n in nodes]
-    low_line = float(np.percentile(node_elev, 35)) if nodes else 0.0
+    low_line = (min(node_elev) + LOW_EXIT_SHARE * (max(node_elev) - min(node_elev))) if nodes else 0.0
     counters: dict[str, int] = defaultdict(int)
 
     def numbered(base: str) -> str:
@@ -537,10 +542,13 @@ def finish_nodes(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mo
         if node.spot and node.type != "AUTO":
             node.name = node.name or numbered(generic.get(node.type, "지점"))
             continue
-        trailhead = node.spot                          # 산림청 '시종점' 지점
-        if node.cut:
-            node.type, base = "PARKING", f"지도경계{boundary_side(node, elevation.shape[1], elevation.shape[0])}"
-        elif degree[i] == 1 and (trailhead or node_elev[i] <= low_line):
+        low = node_elev[i] <= low_line                 # 산 아래인가
+        side = boundary_side(node, elevation.shape[1], elevation.shape[0])
+        if node.cut and low:
+            node.type, base = "PARKING", f"지도경계{side}"
+        elif node.cut:
+            node.type, base = "POINT", f"지도밖연결{side}"
+        elif degree[i] == 1 and low:
             node.type, base = "PARKING", "들머리"
         elif degree[i] == 1:
             node.type, base = "POINT", "끝지점"
@@ -673,6 +681,27 @@ def bridge_gaps(nodes: list[Node], edges: list[Edge], max_cells: int = GAP_BRIDG
         added += 1
 
 
+def drop_exitless_parts(nodes: list[Node], edges: list[Edge]) -> tuple[list[Node], list[Edge], int]:
+    """
+    산 아래 출구(PARKING)가 하나도 없는 등산로 조각은 뺀다. (지도 가장자리의 짧은 조각 등, 대피할 곳이 없는 길)
+    (노드, 간선, 뺀 노드 수)
+    """
+    parent = list(range(len(nodes)))
+
+    def find(a: int) -> int:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for e in edges:
+        parent[find(e.a)] = find(e.b)
+    has_exit = {find(i) for i, n in enumerate(nodes) if n.type == "PARKING"}
+    keep = [i for i in range(len(nodes)) if find(i) in has_exit]
+    remap = {old: new for new, old in enumerate(keep)}
+    kept_edges = [Edge(remap[e.a], remap[e.b], e.cells) for e in edges if e.a in remap and e.b in remap]
+    return [nodes[i] for i in keep], kept_edges, len(nodes) - len(keep)
+
+
 def summit_on_trail(nodes: list[Node], edges: list[Edge], elevation: np.ndarray, mountain: dict) -> None:
     """
     정상 노드가 없으면(정상 근처 길이 '그냥 이어지는 점'으로 합쳐진 경우 등),
@@ -776,6 +805,7 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
     nodes, edges = merge_close_nodes(nodes, edges)            # 잔 노드 정리
     nodes, edges = merge_degree_two(nodes, edges)
     finish_nodes(nodes, edges, elevation, mountain)
+    nodes, edges, _ = drop_exitless_parts(nodes, edges)
     summit_on_trail(nodes, edges, elevation, mountain)
     add_high_points(nodes, edges, elevation)
     if not any(n.type in ("PARKING", "SHELTER") for n in nodes):

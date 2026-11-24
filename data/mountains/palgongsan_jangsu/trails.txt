@@ -3,7 +3,7 @@
 #   종류: JUNCTION 갈림길, SHELTER 대피소, PARKING 주차장(지도 경계·들머리 포함), SUMMIT 정상, POINT 기타
 NODE   1 SUMMIT   140 139 팔공산정상
 NODE   2 JUNCTION 148 187 갈림길1
-NODE   3 PARKING  148  74 서구이재
+NODE   3 POINT    148  74 서구이재
 NODE   4 PARKING  125 225 대성초교앞
 NODE   5 PARKING  171 207 대성고원
 

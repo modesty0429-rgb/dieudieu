@@ -115,7 +115,7 @@ typedef enum {
 /* 등산로 노드 종류 */
 typedef enum {
     NODE_JUNCTION = 0,  /* 갈림길 */
-    NODE_SHELTER,       /* 대피소 (대피 목적지) */
+    NODE_SHELTER,       /* 대피소 (지나가는 곳, 대피 목적지 아님) */
     NODE_PARKING,       /* 주차장 (대피 목적지) */
     NODE_SUMMIT,        /* 정상 */
     NODE_POINT          /* 그 밖의 지점 (전망대 등) */
@@ -133,7 +133,7 @@ typedef struct {
     NodeType type;            /* 종류 */
     int      x, y;            /* 격자 좌표 */
     char     name[WF_NAME_MAX];
-    int      is_exit;         /* 대피 목적지(대피소·주차장)면 1 */
+    int      is_exit;         /* 대피 목적지(산 아래 주차장·들머리)면 1 */
 } TrailNode;
 
 /* 등산로 간선 (두 노드를 잇는 길). 양방향으로 다닐 수 있다. */

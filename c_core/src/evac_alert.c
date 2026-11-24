@@ -6,9 +6,13 @@
  *   남은 시간 = (등산객 주변 check_radius_m 안에 불이 처음 오는 시각) − 지금 시각
  *     남은 시간 ≥ 주의 기준(120분)     → 정상
  *     남은 시간 < 주의 기준            → 주의
- *     남은 시간 < 대피 준비 기준(60분) → 대피 준비   ← 이때 대피 출발
+ *     남은 시간 < 대피 준비 기준(60분) → 대피 준비
  *     남은 시간 < 즉시 대피 기준(30분) → 즉시 대피
  *     안전한 경로가 없음(최소 여유 < 0) / 갇힘 → 고립 (구조 요청)
+ *
+ * [대피 방침] 산불 경보가 나가면(발화 + 발견·통보 지연) 모든 팀이 바로 산 아래(등산로 입구)로 하산한다.
+ *   불이 아직 멀리 있는 팀도 기다리지 않는다. (시뮬레이션 시간 뒤의 불은 예측할 수 없으므로
+ *   "몇 시간 안에 불이 안 오니 남아도 된다"고 판단하지 않는다) 경보 단계는 얼마나 급한지를 보여 준다.
  *
  * [대피 안내 순서] run_evacuation
  *   1) 위험 지도 2개 만들기: 경보용(반경 500 m), 경로용(반경 60 m)
@@ -118,30 +122,20 @@ double remaining_time_at(const DangerMap *alert_map, double x, double y, double 
 }
 
 /*
- * 대피 출발 시각
- *   = max(경보를 낼 수 있는 시각, 시작 위치가 "대피 준비" 단계가 되는 시각)
- *   경보를 낼 수 있는 시각 = 가장 이른 발화 시각 + 발견·통보 지연(notify_delay_min)
- * 시작 위치 주변에 불이 끝까지 오지 않으면 대피할 필요가 없으므로 WF_NO_TIME.
+ * 대피 출발 시각 = 경보를 낼 수 있는 시각 = 가장 이른 발화 시각 + 발견·통보 지연(notify_delay_min)
+ *   모든 팀이 이 시각에 하산을 시작한다. (불이 멀리 있어도 기다리지 않음)
  */
-double compute_departure_time(const Scenario *sc, const DangerMap *alert_map, const Hiker *hiker)
+double compute_departure_time(const Scenario *sc)
 {
-    const TrailNode *start = &sc->trails.nodes[hiker->start_node];
-    double           danger = danger_time_at(alert_map, start->x, start->y);
-    double           first_ignition = sc->ignitions[0].time_min;
-    double           notify_time, prepare_time;
-    int              i;
+    double first_ignition = sc->ignitions[0].time_min;
+    int    i;
 
-    if (danger >= DANGER_NONE) {
-        return WF_NO_TIME;
-    }
     for (i = 1; i < sc->ignition_count; i++) {
         if (sc->ignitions[i].time_min < first_ignition) {
             first_ignition = sc->ignitions[i].time_min;
         }
     }
-    notify_time = first_ignition + sc->alert.notify_delay_min;
-    prepare_time = danger - sc->alert.prepare_min;
-    return (prepare_time > notify_time) ? prepare_time : notify_time;
+    return first_ignition + sc->alert.notify_delay_min;
 }
 
 /*
@@ -252,10 +246,8 @@ int run_evacuation(Scenario *sc, EvacSummary *summary)
         double search_time;
 
         reset_hiker(h);
-        h->depart_time_min = compute_departure_time(sc, &alert_map, h);
-        /* 대피가 필요 없어도 "만약 대피한다면" 경로를 참고로 계산해 둔다 (경보 가능 시각 기준) */
-        search_time = time_is_set(h->depart_time_min) ? h->depart_time_min
-                                                      : sc->ignitions[0].time_min + sc->alert.notify_delay_min;
+        h->depart_time_min = compute_departure_time(sc);    /* 모든 팀이 경보 시각에 하산 시작 */
+        search_time = h->depart_time_min;
         if (find_safest_route(sc, &route_map, h->start_node, search_time, h->speed_kmh, &h->route) < 0) {
             ok = 0;
             break;
