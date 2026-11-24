@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9899 | 약 8,000 | 124% |
-| Python | 8135 | 약 4,000 | 203% |
-| **합계** | **18034** | **약 12,000** | **150%** |
+| Python | 8147 | 약 4,000 | 204% |
+| **합계** | **18046** | **약 12,000** | **150%** |
 
 ## C
 
@@ -99,11 +99,11 @@
 | `gui/views/map_view.py` | 532 | 419 | 57 | 56 |
 | `gui/views/playback_bar.py` | 124 | 90 | 10 | 24 |
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
-| `gui/views/scenario_panel.py` | 455 | 368 | 39 | 48 |
+| `gui/views/scenario_panel.py` | 467 | 375 | 43 | 49 |
 | `gui/views/stats_view.py` | 226 | 181 | 18 | 27 |
 | `gui/views/suppression_view.py` | 226 | 180 | 16 | 30 |
 | `gui/views/weather_dialog.py` | 246 | 205 | 16 | 25 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
 | `tools/run_tests.py` | 589 | 460 | 54 | 75 |
-| **합계** | **8135** | **5806** | **1132** | **1197** |
+| **합계** | **8147** | **5813** | **1136** | **1198** |
