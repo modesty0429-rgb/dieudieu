@@ -45,7 +45,7 @@ def season_badge(season: str | None, snow_line_m: float) -> str:
     return text
 
 CROWDED_NODES = 60    # 등산로 지점이 이보다 많으면 자동으로 붙인 이름은 지도에 쓰지 않는다 (글자가 겹쳐 안 보이므로)
-AUTO_NAME = re.compile(r"(갈림길|들머리|끝지점|지도경계[동서남북]|최고점\d+m)\d*")
+AUTO_NAME = re.compile(r"(갈림길|들머리|끝지점|지도경계[동서남북]|지도밖연결[동서남북]|최고점\d+m)\d*")
 
 
 class MapView(QWidget):

@@ -32,7 +32,7 @@ th { background: #f6e3d8; }
 img { max-width: 100%; border: 1px solid #ddd; margin: 8px 0; }
 """
 
-STATUS_KOREAN = {"HIKING": "대피 불필요", "EVACUATING": "대피 중", "SAFE": "대피 완료", "TRAPPED": "고립"}
+STATUS_KOREAN = {"HIKING": "경보 전", "EVACUATING": "대피 중", "SAFE": "대피 완료", "TRAPPED": "고립"}
 
 
 def _esc(text) -> str:
@@ -97,9 +97,9 @@ def _evacuation(result: SimulationResult) -> str:
             f"<span class='{'bad' if s['trapped'] else 'good'}'>고립 {s['trapped']}팀</span>, "
             f"위험 {s['at_risk_hikers']}팀 {s['at_risk_people']}명</p>")
     cfg = evac.settings
-    note = (f"<p class='note'>경보 기준: 주의 &lt; {cfg['caution_min']:.0f}분, 대피준비 &lt; {cfg['prepare_min']:.0f}분(출발), "
+    note = (f"<p class='note'>경보 기준: 주의 &lt; {cfg['caution_min']:.0f}분, 대피준비 &lt; {cfg['prepare_min']:.0f}분, "
             f"즉시대피 &lt; {cfg['immediate_min']:.0f}분 (반경 {cfg['check_radius_m']:.0f} m), "
-            f"경보 가능 시각 {cfg['notify_delay_min']:.0f}분. 경보 단계: {', '.join(ALERT_KOREAN.values())}</p>")
+            f"발화 후 {cfg['notify_delay_min']:.0f}분 경보 → 전원 하산. 경보 단계: {', '.join(ALERT_KOREAN.values())}</p>")
     extra = ""
     mc = result.montecarlo
     if mc is not None and mc.evacuation is not None:

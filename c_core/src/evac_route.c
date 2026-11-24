@@ -130,22 +130,15 @@ void route_free(Route *route)
 }
 
 /*
- * 이 노드가 안전한 대피 목적지인가?
- *   주차장: 차로 산을 벗어날 수 있으므로 항상 목적지
- *   대피소: 근처(위험 반경)에 불이 끝까지 오지 않을 때만 목적지
- *           (불이 오는 대피소로 가면 갇힐 수 있으므로 제외) [가정]
+ * 이 노드가 대피 목적지인가?
+ *   목적지는 산 아래의 등산로 입구(주차장·들머리)뿐이다. 도착하면 차나 도로로 산불 지역을 벗어날 수 있다.
+ *   산속 대피소는 불이 언제 올지 시뮬레이션 시간 뒤까지는 알 수 없으므로 목적지로 쓰지 않고 지나가기만 한다.
+ *   목적지에 도착하는 순간까지의 안전(경로 위 모든 칸의 여유)은 find_safest_route 가 따진다.
  */
 int node_is_safe_exit(const Scenario *sc, const DangerMap *danger, int node)
 {
-    const TrailNode *n = &sc->trails.nodes[node];
-
-    if (n->type == NODE_PARKING) {
-        return 1;
-    }
-    if (n->type == NODE_SHELTER) {
-        return danger_time_at(danger, n->x, n->y) >= DANGER_NONE;
-    }
-    return 0;
+    (void)danger;
+    return sc->trails.nodes[node].type == NODE_PARKING;
 }
 
 /* ================================================================

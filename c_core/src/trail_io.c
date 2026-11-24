@@ -151,7 +151,7 @@ static int parse_node_record(char **tokens, int token_count, const char *path, i
         snprintf(node->name + used, sizeof(node->name) - used, " %s", tokens[i]);
     }
 
-    node->is_exit = (node->type == NODE_SHELTER || node->type == NODE_PARKING);
+    node->is_exit = (node->type == NODE_PARKING);     /* 대피 목적지 = 산 아래 등산로 입구 */
 
     if (grid->cells[node->y][node->x].state == CELL_WATER) {
         log_warn("%s %d번째 줄: 노드 '%s'가 물 위에 있음", path, line_no, node->name);
@@ -474,7 +474,7 @@ int load_trail_graph(const char *path, const Grid *grid, TrailGraph *graph)
 }
 
 /*
- * 모든 노드에서 대피 목적지(대피소·주차장)까지 갈 수 있는지 검사한다.
+ * 모든 노드에서 대피 목적지(산 아래 주차장·들머리)까지 갈 수 있는지 검사한다.
  * 모든 목적지에서 동시에 출발하는 너비 우선 탐색(BFS)을 해서
  * 한 번도 도달하지 못한 노드가 있으면 경고를 출력한다.
  * 반환값: 목적지까지 갈 수 없는 노드 수
@@ -501,7 +501,7 @@ int check_exits_reachable(const TrailGraph *graph)
         }
     }
     if (queue.count == 0) {
-        log_warn("등산로에 대피 목적지(SHELTER 또는 PARKING)가 하나도 없음");
+        log_warn("등산로에 대피 목적지(PARKING: 산 아래 주차장·들머리)가 하나도 없음");
     }
 
     /* 큐에서 하나씩 꺼내 이웃 노드를 방문 */
@@ -522,7 +522,7 @@ int check_exits_reachable(const TrailGraph *graph)
 
     for (i = 0; i < graph->node_count; i++) {
         if (!visited[i]) {
-            log_warn("노드 %d '%s'에서 대피소·주차장으로 가는 길이 없음", graph->nodes[i].id, graph->nodes[i].name);
+            log_warn("노드 %d '%s'에서 산 아래 출구(주차장·들머리)로 가는 길이 없음", graph->nodes[i].id, graph->nodes[i].name);
             unreachable++;
         }
     }

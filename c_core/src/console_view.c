@@ -511,7 +511,7 @@ void print_evacuation_table(const Scenario *sc, const EvacSummary *summary)
         printf("\n [H%d] %s (%d명, %.1f km/h) — 시작: %s\n", h->id, h->name, h->group_size, h->speed_kmh,
                sc->trails.nodes[h->start_node].name);
         if (!time_is_set(h->depart_time_min)) {
-            printf("    결과: 주변에 불이 오지 않음 → 대피 불필요\n");
+            printf("    결과: 대피 계산 전\n");
         } else {
             printf("    출발: %.0f분, 결과: %s", h->depart_time_min, hiker_status_korean(h->status));
             if (time_is_set(h->finish_time_min)) {

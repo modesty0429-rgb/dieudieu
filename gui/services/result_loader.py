@@ -92,7 +92,7 @@ class HikerEvacuation:
     speed_kmh: float
     start_name: str
     needs_evacuation: bool
-    depart_time: float          # 출발 시각 (분), 대피 불필요면 -1
+    depart_time: float          # 하산 시작 시각 (분) = 경보 시각
     finish_time: float          # 대피 완료·고립 시각 (분), 없으면 -1
     status: str                 # HIKING, SAFE, TRAPPED ...
     at_risk: bool

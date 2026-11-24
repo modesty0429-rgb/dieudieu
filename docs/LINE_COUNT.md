@@ -4,9 +4,9 @@
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
-| C | 9899 | 약 8,000 | 124% |
-| Python | 8147 | 약 4,000 | 204% |
-| **합계** | **18046** | **약 12,000** | **150%** |
+| C | 9884 | 약 8,000 | 124% |
+| Python | 8168 | 약 4,000 | 204% |
+| **합계** | **18052** | **약 12,000** | **150%** |
 
 ## C
 
@@ -42,8 +42,8 @@
 | `c_core/src/console_view.c` | 544 | 442 | 57 | 45 |
 | `c_core/src/daylight.c` | 236 | 164 | 47 | 25 |
 | `c_core/src/dynarray.c` | 90 | 62 | 17 | 11 |
-| `c_core/src/evac_alert.c` | 284 | 202 | 53 | 29 |
-| `c_core/src/evac_route.c` | 401 | 277 | 83 | 41 |
+| `c_core/src/evac_alert.c` | 276 | 193 | 54 | 29 |
+| `c_core/src/evac_route.c` | 394 | 271 | 83 | 40 |
 | `c_core/src/fuel_moisture.c` | 281 | 196 | 57 | 28 |
 | `c_core/src/grid.c` | 183 | 127 | 34 | 22 |
 | `c_core/src/hiker.c` | 213 | 149 | 48 | 16 |
@@ -65,7 +65,7 @@
 | `c_core/src/trail_io.c` | 697 | 535 | 97 | 65 |
 | `c_core/src/util.c` | 527 | 380 | 91 | 56 |
 | `c_core/src/weather.c` | 259 | 188 | 46 | 25 |
-| **합계** | **9899** | **7264** | **1623** | **1012** |
+| **합계** | **9884** | **7249** | **1624** | **1011** |
 
 ## Python
 
@@ -77,7 +77,7 @@
 | `gui/services/app_config.py` | 71 | 37 | 18 | 16 |
 | `gui/services/daylight_render.py` | 92 | 54 | 21 | 17 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/forest_import.py` | 1124 | 826 | 143 | 155 |
+| `gui/services/forest_import.py` | 1154 | 845 | 149 | 160 |
 | `gui/services/hiker_setup.py` | 230 | 151 | 40 | 39 |
 | `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
 | `gui/services/mountain_builder.py` | 457 | 263 | 115 | 79 |
@@ -92,7 +92,7 @@
 | `gui/theme.py` | 188 | 155 | 19 | 14 |
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
 | `gui/views/daylight_group.py` | 94 | 65 | 12 | 17 |
-| `gui/views/evacuation_view.py` | 214 | 176 | 11 | 27 |
+| `gui/views/evacuation_view.py` | 205 | 167 | 11 | 27 |
 | `gui/views/hiker_group.py` | 239 | 175 | 28 | 36 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
 | `gui/views/main_window.py` | 343 | 267 | 35 | 41 |
@@ -106,4 +106,4 @@
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
 | `tools/run_tests.py` | 589 | 460 | 54 | 75 |
-| **합계** | **8147** | **5813** | **1136** | **1198** |
+| **합계** | **8168** | **5823** | **1142** | **1203** |

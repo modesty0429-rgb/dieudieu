@@ -20,10 +20,8 @@ COLUMNS = ["팀", "경보", "상태", "남은 시간", "최소 여유", "목적�
 
 def status_text(hiker: HikerEvacuation, status: str, t: float) -> str:
     """시각 t 의 상태를 사람이 읽기 좋은 한국어로"""
-    if not hiker.needs_evacuation:
-        return "대피 불필요"
     if status == "HIKING":
-        return f"출발 대기 ({hiker.depart_time:.0f}분)"
+        return f"경보 전 ({hiker.depart_time:.0f}분 하산 시작)"
     if status == "EVACUATING":
         return "대피 중"
     if status == "SAFE":
@@ -126,8 +124,8 @@ class EvacuationView(QWidget):
             f"<span style='color:{risk_color}'>고립 {s['trapped']}팀 · 위험 {s['at_risk_hikers']}팀 "
             f"{s['at_risk_people']}명</span><br>"
             f"<span style='color:{theme.TEXT_DIM}'>기준: 주의 &lt; {cfg['caution_min']:.0f}분, "
-            f"대피준비 &lt; {cfg['prepare_min']:.0f}분(출발), 즉시대피 &lt; {cfg['immediate_min']:.0f}분, "
-            f"경보 가능 시각 {cfg['notify_delay_min']:.0f}분</span>")
+            f"대피준비 &lt; {cfg['prepare_min']:.0f}분, 즉시대피 &lt; {cfg['immediate_min']:.0f}분, "
+            f"발화 후 {cfg['notify_delay_min']:.0f}분 경보 → 전원 하산</span>")
         self.table.setRowCount(len(evacuation.hikers))
         for row, hiker in enumerate(evacuation.hikers):
             self._set_cell(row, 0, f"H{hiker.id} {hiker.name} ({hiker.group_size}명)")
@@ -200,15 +198,8 @@ class EvacuationView(QWidget):
             if hiker.dark_walk_min > 0.5:
                 lines.append(f"🌙 어두운 산길을 {hiker.dark_walk_min:.0f}분 걸음 (밤에는 헤드랜턴에 의지해 천천히 걸음)")
             if hiker.min_margin is not None and hiker.min_margin < 0:
-                # 출발이 "신고 시각"에 묶였는지, "대피 준비 경보 시각"이었는지에 따라 원인이 다르다
+                # 모든 팀은 경보 시각(발화 + 발견·통보 지연)에 바로 하산하므로, 늦은 원인은 발견·통보 지연이다
                 notify = self.evacuation.settings["notify_delay_min"]
-                if abs(hiker.depart_time - notify) < 0.5:
-                    advice = (f"산불 발견·신고가 늦어(발화 후 {notify:.0f}분) 그때 바로 출발했지만 이미 늦었습니다. "
-                              f"경보 기준보다 조기 발견이 중요합니다.")
-                else:
-                    advice = "대피 준비 경보 기준(prepare_min)을 앞당기면 결과가 달라질 수 있습니다."
-                lines.append(f"<span style='color:{theme.ERROR}'>출발 시점에 이미 모든 경로가 위험합니다. "
-                             f"{advice}</span>")
-        else:
-            lines.append("시작 위치 주변에 불이 오지 않아 대피가 필요 없었습니다. (참고용 경로)")
+                lines.append(f"<span style='color:{theme.ERROR}'>경보(발화 후 {notify:.0f}분)를 받고 바로 하산했지만 "
+                             f"이미 모든 경로가 위험합니다. 산불을 더 일찍 발견·통보하는 것이 중요합니다.</span>")
         self.detail.setHtml("<br>".join(lines))
