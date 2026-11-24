@@ -1,0 +1,32 @@
+{
+  "id": "bukhansan",
+  "name": "북한산 (백운대)",
+  "peak": "백운대",
+  "center": [
+    37.64,
+    126.975
+  ],
+  "width": 300,
+  "height": 300,
+  "cell_m": 30.0,
+  "earth_radius_m": 6371008.8,
+  "summit_latlon": [
+    37.6584,
+    126.9779
+  ],
+  "summit_cell": [
+    158,
+    81
+  ],
+  "winter_snow_line_m": 600.0,
+  "elevation_range_m": [
+    24.8,
+    811.2
+  ],
+  "files": {
+    "elevation": "../data/mountains/bukhansan/elev.asc",
+    "fuel": "../data/mountains/bukhansan/fuel.asc",
+    "trails": "../data/mountains/bukhansan/trails.txt",
+    "scenario": "../data/scenarios/mountain_bukhansan.ini"
+  }
+}

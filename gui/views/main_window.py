@@ -140,8 +140,12 @@ class MainWindow(QMainWindow):
         folder_action.triggered.connect(self._open_output_folder)
         quit_action = QAction("종료", self)
         quit_action.triggered.connect(self.close)
+        mobile_action = QAction("📱 휴대폰으로 발화 정보 보내기 (링크·QR)...", self)
+        mobile_action.triggered.connect(self._open_mobile_dialog)
         file_menu.addAction(open_action)
         file_menu.addAction(folder_action)
+        file_menu.addSeparator()
+        file_menu.addAction(mobile_action)
         file_menu.addSeparator()
         file_menu.addAction(quit_action)
 
@@ -252,6 +256,11 @@ class MainWindow(QMainWindow):
     def _on_pick_mode(self, on: bool) -> None:
         if on:
             self.status_bar.show_message("📍 지도의 등산로(점선)를 클릭해 팀 위치를 정하세요. 발화 지점은 바뀌지 않습니다.")
+
+    def _open_mobile_dialog(self) -> None:
+        """(11단계) 관제: 지금 발화 지점·날씨를 휴대폰 앱 링크·QR 로"""
+        from views.mobile_dialog import MobileDialog
+        MobileDialog(self.panel, self).exec()
 
     def _on_season_preview(self, season, snow_line_m: float) -> None:
         """(9단계) 왼쪽에서 계절을 고르면 바로 지도 색을 바꿔 보여 준다. (다음 실행 결과도 같은 계절)"""
