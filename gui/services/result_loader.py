@@ -409,6 +409,8 @@ def season_from_ini(parser, start: datetime | None) -> tuple[str | None, float]:
     if season is None:
         return None, 0.0
     snow = parser.getfloat("season", "snow_line_m", fallback=-1.0)
+    if snow < 0 and season == "winter":
+        snow = parser.getfloat("season", "winter_snow_line_m", fallback=-1.0)   # 산마다 다른 겨울 눈 경계
     if snow < 0:
         snow = DEFAULT_SNOW_LINE.get(season, 0.0)
     return season, snow

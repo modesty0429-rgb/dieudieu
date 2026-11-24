@@ -287,6 +287,7 @@ typedef struct {
 typedef struct {
     int    season;            /* SEASON_* (기본 SEASON_NONE) */
     double snow_line_m;       /* 이 고도 이상 눈 덮임. 음수면 계절 기본값 (겨울 600 m) */
+    double winter_snow_line_m; /* 이 산의 겨울 눈 경계 (산마다 다름). 음수면 계절 기본값. 겨울에만 쓰임 */
     double snow_walk_factor;  /* 눈길 보행 속도 배율 (0 ~ 1) */
 } SeasonSettings;
 

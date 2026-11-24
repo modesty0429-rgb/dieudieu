@@ -96,6 +96,7 @@ void scenario_set_defaults(Scenario *sc)
     /* 계절 (9단계): 기본은 계절 효과 없음 */
     sc->season.season = SEASON_NONE;
     sc->season.snow_line_m = -1.0;
+    sc->season.winter_snow_line_m = -1.0;
     sc->season.snow_walk_factor = 0.75;
 
     sc->weather_mode = WEATHER_FROM_FILE;
@@ -431,6 +432,9 @@ static int apply_season(Scenario *sc, const SettingContext *ctx, const char *val
     if (str_equals_ignore_case(ctx->key, "snow_line_m")) {
         return read_double_setting(ctx, value, -1.0, 9000.0, &s->snow_line_m);
     }
+    if (str_equals_ignore_case(ctx->key, "winter_snow_line_m")) {
+        return read_double_setting(ctx, value, -1.0, 9000.0, &s->winter_snow_line_m);
+    }
     if (str_equals_ignore_case(ctx->key, "snow_walk_factor")) {
         return read_double_setting(ctx, value, 0.1, 1.0, &s->snow_walk_factor);
     }
@@ -652,6 +656,90 @@ static int validate_settings(Scenario *sc)
     return errors;
 }
 
+/* (x, y) 가 눈 없이 탈 수 있는 셀이면 1 */
+static int ignitable_without_snow(const Scenario *sc, int x, int y)
+{
+    const Cell *cell;
+    if (!grid_in_bounds(&sc->grid, x, y)) {
+        return 0;
+    }
+    cell = &sc->grid.cells[y][x];
+    return !cell_has_snow(sc, cell) && cell_is_burnable_state(cell) && cell_fuel_is_burnable(sc, cell);
+}
+
+/* 주변 8칸 중 눈 없이 탈 수 있는 칸 수 (외딴 숲 한 칸을 고르지 않으려고) */
+static int ignitable_neighbors(const Scenario *sc, int x, int y)
+{
+    int count = 0;
+    int dx, dy;
+    for (dy = -1; dy <= 1; dy++) {
+        for (dx = -1; dx <= 1; dx++) {
+            if ((dx != 0 || dy != 0) && ignitable_without_snow(sc, x + dx, y + dy)) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+/*
+ * 겨울에 발화 지점이 눈 덮인 곳이면 가장 가까운 "눈 없는 숲"으로 옮긴다. (실행을 멈추지 않음)
+ * 실제 산은 정상부가 눈 경계보다 높아, 봄 기준으로 정한 발화 지점이 겨울엔 눈 위일 수 있다.
+ * 거리 순으로 넓혀 가며 찾고, 주변 8칸 중 6칸 이상이 탈 수 있는 곳을 고른다. [가정]
+ * 반환값: 옮기지 못한 지점 수 (오류)
+ */
+#define SNOW_RELOCATE_MAX_CELLS 150    /* 4.5 km 안에서 찾음 */
+static int relocate_snow_ignitions(Scenario *sc)
+{
+    int errors = 0;
+    int i;
+
+    if (season_snow_line(sc) <= 0.0) {
+        return 0;
+    }
+    for (i = 0; i < sc->ignition_count; i++) {
+        IgnitionPoint *p = &sc->ignitions[i];
+        int r, dx, dy;
+        int best_x = -1, best_y = -1;
+        long best_d2 = -1;
+
+        if (!grid_in_bounds(&sc->grid, p->x, p->y) ||
+            !cell_has_snow(sc, &sc->grid.cells[p->y][p->x])) {
+            continue;
+        }
+        for (r = 1; r <= SNOW_RELOCATE_MAX_CELLS && best_d2 < 0; r++) {
+            for (dy = -r; dy <= r; dy++) {
+                for (dx = -r; dx <= r; dx++) {
+                    long d2;
+                    if (abs(dx) != r && abs(dy) != r) {
+                        continue;                /* 이번 고리(테두리)만 */
+                    }
+                    d2 = (long)dx * dx + (long)dy * dy;
+                    if (ignitable_without_snow(sc, p->x + dx, p->y + dy) &&
+                        ignitable_neighbors(sc, p->x + dx, p->y + dy) >= 6 &&
+                        (best_d2 < 0 || d2 < best_d2)) {
+                        best_d2 = d2;
+                        best_x = p->x + dx;
+                        best_y = p->y + dy;
+                    }
+                }
+            }
+        }
+        if (best_d2 < 0) {
+            log_error("발화 지점 %d (%d, %d)는 눈 덮인 곳이고, 4.5 km 안에 눈 없는 숲이 없음 — 다른 곳을 고르세요",
+                      i + 1, p->x, p->y);
+            errors++;
+            continue;
+        }
+        log_warn("발화 지점 %d (%d, %d, 고도 %.0f m)가 눈 경계 %.0f m 보다 높아 가장 가까운 눈 없는 숲 (%d, %d, 고도 %.0f m)으로 옮김",
+                 i + 1, p->x, p->y, sc->grid.cells[p->y][p->x].elevation, season_snow_line(sc),
+                 best_x, best_y, sc->grid.cells[best_y][best_x].elevation);
+        p->x = best_x;
+        p->y = best_y;
+    }
+    return errors;
+}
+
 /* 발화 지점이 지도 안에 있고 탈 수 있는 셀인지 검사한다. 반환값: 오류 수 */
 static int validate_ignitions(const Scenario *sc)
 {
@@ -723,7 +811,7 @@ int load_scenario(const char *path, Scenario *sc)
         return 0;
     }
     compute_slope_aspect(&sc->grid);
-    if (validate_ignitions(sc) > 0) {
+    if (relocate_snow_ignitions(sc) > 0 || validate_ignitions(sc) > 0) {
         return 0;
     }
 

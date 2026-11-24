@@ -266,18 +266,49 @@ def test_season(tmp: Path) -> None:
         check("눈 덮인 곳(해발 600 m 이상)으로는 불이 번지지 않음", burned_on_snow == 0,
               f"눈 위에 탄 셀 {burned_on_snow}개")
         check("결과 읽기: 지도에 계절·눈 경계 반영", result.map.season == "winter" and result.map.snow_line_m == line)
-        # 눈 위 발화 지점은 오류
+        # 눈 위 발화 지점은 가장 가까운 눈 없는 숲으로 옮겨서 실행
         y, x = (int(v) for v in np.argwhere(snowy)[0])
-        bad = write_edge_scenario(tmp, "season_snow_ignition",
-                                  f"[ignition]\npoint1 = {x}, {y}\n[season]\nseason = winter\n")
-        code, text = run_engine(bad, "run", tmp / "season_snow_ignition")
-        check("눈 덮인 곳에 발화 지점을 두면 오류", code == 1 and "눈" in text, f"종료 코드 {code}")
+        moved = write_edge_scenario(tmp, "season_snow_ignition",
+                                    f"[ignition]\npoint1 = {x}, {y}\n[season]\nseason = winter\n")
+        code, text = run_engine(moved, "run", tmp / "season_snow_ignition")
+        ok = code == 0 and "옮김" in text
+        if ok:
+            moved_summary = json.loads((tmp / "season_snow_ignition" / "summary.json").read_text(encoding="utf-8"))
+            point = moved_summary["ignitions"][0]
+            ok = result.map.elevation[point["y"], point["x"]] < line
+        check("눈 덮인 곳의 발화 지점은 눈 아래 숲으로 옮겨 실행", ok, f"종료 코드 {code}")
     except (OSError, KeyError, ValueError, IndexError) as error:
         check("겨울 결과 읽기", False, str(error))
 
     bad = write_edge_scenario(tmp, "bad_season", "[ignition]\npoint1 = 120, 80\n[season]\nseason = monsoon\n")
     code, text = run_engine(bad, "run", tmp / "bad_season")
     check("잘못된 계절 이름은 오류 (season = monsoon)", code == 1 and "season" in text, f"종료 코드 {code}")
+
+
+def test_mountain_winter(tmp: Path) -> None:
+    """실제 산 6곳 모두 겨울로 실행된다 (산마다 다른 눈 경계, 눈 위 발화 지점은 옮김)"""
+    import json
+    print("\n[엔진] 실제 산 겨울 (산마다 눈 경계)")
+    results = []
+    for path in sorted(SCENARIOS.glob("mountain_*.ini")):
+        scenario = SCENARIOS / f"zz_test_winter_{path.stem}.ini"
+        scenario.write_text(path.read_text(encoding="utf-8") +
+                            "\n[weather]\nmode = season\n[time]\nduration_min = 120\n"
+                            "[season]\nseason = winter\n", encoding="utf-8")
+        try:
+            code, _text = run_engine(scenario, "run", tmp / scenario.stem)
+        finally:
+            scenario.unlink()
+        if code != 0:
+            results.append((path.stem, None))
+            continue
+        season = json.loads((tmp / scenario.stem / "summary.json").read_text(encoding="utf-8"))["season"]
+        results.append((path.stem, season["snow_line_m"]))
+    failed = [name for name, line in results if line is None]
+    check("실제 산 6곳 모두 겨울로 실행됨", len(results) == 6 and not failed, f"실패: {failed}")
+    lines = dict(results)
+    check("산마다 눈 경계가 다름 (지리산 > 북한산)",
+          (lines.get("mountain_jirisan") or 0) > (lines.get("mountain_bukhansan") or 0) > 0, str(lines))
 
 
 def test_hiker_teams(tmp: Path) -> None:
@@ -572,6 +603,7 @@ def main() -> int:
         test_line_endings(tmp)
         test_daylight(tmp)
         test_season(tmp)
+        test_mountain_winter(tmp)
         test_hiker_teams(tmp)
         test_python_helpers(tmp)
         test_real_mountains(tmp)

@@ -4,9 +4,9 @@
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
-| C | 9899 | 약 8,000 | 124% |
-| Python | 8147 | 약 4,000 | 204% |
-| **합계** | **18046** | **약 12,000** | **150%** |
+| C | 9997 | 약 8,000 | 125% |
+| Python | 8210 | 약 4,000 | 205% |
+| **합계** | **18207** | **약 12,000** | **152%** |
 
 ## C
 
@@ -38,7 +38,7 @@
 | `c_core/include/util.h` | 54 | 35 | 11 | 8 |
 | `c_core/include/weather.h` | 16 | 9 | 4 | 3 |
 | `c_core/include/wf_config.h` | 46 | 26 | 13 | 7 |
-| `c_core/include/wf_types.h` | 416 | 298 | 73 | 45 |
+| `c_core/include/wf_types.h` | 417 | 299 | 73 | 45 |
 | `c_core/src/console_view.c` | 544 | 442 | 57 | 45 |
 | `c_core/src/daylight.c` | 236 | 164 | 47 | 25 |
 | `c_core/src/dynarray.c` | 90 | 62 | 17 | 11 |
@@ -55,8 +55,8 @@
 | `c_core/src/output_json.c` | 655 | 531 | 58 | 66 |
 | `c_core/src/pqueue.c` | 118 | 89 | 16 | 13 |
 | `c_core/src/rng.c` | 82 | 47 | 27 | 8 |
-| `c_core/src/scenario_io.c` | 758 | 613 | 73 | 72 |
-| `c_core/src/season.c` | 194 | 134 | 42 | 18 |
+| `c_core/src/scenario_io.c` | 846 | 688 | 81 | 77 |
+| `c_core/src/season.c` | 203 | 138 | 47 | 18 |
 | `c_core/src/spotting.c` | 86 | 50 | 26 | 10 |
 | `c_core/src/spread_rate.c` | 107 | 55 | 41 | 11 |
 | `c_core/src/spread_sim.c` | 527 | 383 | 93 | 51 |
@@ -65,7 +65,7 @@
 | `c_core/src/trail_io.c` | 697 | 535 | 97 | 65 |
 | `c_core/src/util.c` | 527 | 380 | 91 | 56 |
 | `c_core/src/weather.c` | 259 | 188 | 46 | 25 |
-| **합계** | **9899** | **7264** | **1623** | **1012** |
+| **합계** | **9997** | **7344** | **1636** | **1017** |
 
 ## Python
 
@@ -80,10 +80,10 @@
 | `gui/services/forest_import.py` | 1124 | 826 | 143 | 155 |
 | `gui/services/hiker_setup.py` | 230 | 151 | 40 | 39 |
 | `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
-| `gui/services/mountain_builder.py` | 457 | 263 | 115 | 79 |
+| `gui/services/mountain_builder.py` | 461 | 266 | 115 | 80 |
 | `gui/services/overture_trails.py` | 195 | 130 | 28 | 37 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
-| `gui/services/result_loader.py` | 480 | 353 | 43 | 84 |
+| `gui/services/result_loader.py` | 482 | 355 | 43 | 84 |
 | `gui/services/scenario_writer.py` | 152 | 104 | 25 | 23 |
 | `gui/services/season_render.py` | 238 | 155 | 48 | 35 |
 | `gui/services/terrain_generator.py` | 256 | 145 | 60 | 51 |
@@ -95,15 +95,15 @@
 | `gui/views/evacuation_view.py` | 214 | 176 | 11 | 27 |
 | `gui/views/hiker_group.py` | 239 | 175 | 28 | 36 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
-| `gui/views/main_window.py` | 343 | 267 | 35 | 41 |
+| `gui/views/main_window.py` | 351 | 275 | 35 | 41 |
 | `gui/views/map_view.py` | 532 | 419 | 57 | 56 |
 | `gui/views/playback_bar.py` | 124 | 90 | 10 | 24 |
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
-| `gui/views/scenario_panel.py` | 467 | 375 | 43 | 49 |
+| `gui/views/scenario_panel.py` | 484 | 385 | 48 | 51 |
 | `gui/views/stats_view.py` | 226 | 181 | 18 | 27 |
 | `gui/views/suppression_view.py` | 226 | 180 | 16 | 30 |
 | `gui/views/weather_dialog.py` | 246 | 205 | 16 | 25 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
-| `tools/run_tests.py` | 589 | 460 | 54 | 75 |
-| **합계** | **8147** | **5813** | **1136** | **1198** |
+| `tools/run_tests.py` | 621 | 489 | 55 | 77 |
+| **합계** | **8210** | **5865** | **1142** | **1203** |

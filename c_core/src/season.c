@@ -101,15 +101,24 @@ int season_effective(const Scenario *sc)
     return s;
 }
 
-/* 눈 경계 고도 (m). 0 이면 눈 없음. snow_line_m 을 직접 적으면 그 값, 아니면 계절 기본값 */
+/*
+ * 눈 경계 고도 (m). 0 이면 눈 없음.
+ *   1) snow_line_m 을 직접 적으면 그 값 (어느 계절이든)
+ *   2) 겨울이고 이 산의 winter_snow_line_m 이 있으면 그 값 (실제 산마다 눈 덮이는 높이가 다름)
+ *   3) 아니면 계절 기본값 (겨울 600 m, 나머지 0)
+ */
 double season_snow_line(const Scenario *sc)
 {
-    const SeasonClimate *c = season_climate(season_effective(sc));
+    int season = season_effective(sc);
+    const SeasonClimate *c = season_climate(season);
     if (c == NULL) {
         return 0.0;
     }
     if (sc->season.snow_line_m >= 0.0) {
         return sc->season.snow_line_m;
+    }
+    if (season == SEASON_WINTER && sc->season.winter_snow_line_m >= 0.0) {
+        return sc->season.winter_snow_line_m;
     }
     return c->snow_line_m;
 }

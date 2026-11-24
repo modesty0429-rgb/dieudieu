@@ -206,6 +206,7 @@ class MainWindow(QMainWindow):
         self.preview = preview
         self.panel.hiker_group.load(preview.nodes, preview.edges, preview.hikers)   # (10단계) 등산객 팀
         self._show_preview(preview)
+        self.panel.emit_season_preview()          # 계절을 골라 둔 채 산을 바꿔도 그 산의 계절 지도로
         self.status_bar.show_message(f"시나리오 '{preview.name}' 지도 ({preview.width}×{preview.height}칸)")
 
     def _show_preview(self, preview, keep_view: bool = False) -> None:
@@ -308,7 +309,14 @@ class MainWindow(QMainWindow):
         self.panel.set_running(False)
         if code == 0 and result_path:
             self.status_bar.progress.setValue(100)
-            self.load_result_file(Path(result_path))
+            before = (self.panel.ignition_x.value(), self.panel.ignition_y.value())
+            if self.load_result_file(Path(result_path)) and self.result.map.ignitions:
+                x, y = self.result.map.ignitions[0][0], self.result.map.ignitions[0][1]
+                if (x, y) != before:      # 겨울에 눈 위 발화 지점을 엔진이 눈 아래 숲으로 옮긴 경우
+                    self.panel.set_ignition(x, y)
+                    self.status_bar.show_message(
+                        f"발화 지점 {before}이 눈 덮인 곳이라 가장 가까운 눈 없는 숲 ({x}, {y})으로 옮겨 계산했습니다.",
+                        theme.SUCCESS)
         else:
             self.status_bar.show_message(
                 f"엔진이 오류로 끝났습니다 (종료 코드 {code}). '엔진 로그' 탭에서 [ERROR] 줄을 확인하세요.",
