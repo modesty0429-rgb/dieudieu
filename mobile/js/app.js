@@ -259,6 +259,10 @@ async function compute() {
     toast(`계산 실패: ${app.lastError}`, 6000);
   } else {
     app.result = result;
+    if (!app.fire.clockStarted) {          // 시계는 첫 계산이 끝난 뒤부터 흐름 (빠른 배속에서 첫 단계를 건너뛰지 않게)
+      app.fire.receivedAt = Date.now();
+      app.fire.clockStarted = true;
+    }
     const ig = result.summary.ignitions[0];
     app.fire.cell = { x: ig.x, y: ig.y };      // 겨울: 눈 위 발화 지점은 엔진이 눈 아래 숲으로 옮김
     const key = result.summary.season.key;
@@ -279,6 +283,7 @@ function nearestNode(p) {
 // ------------------------------------------------------------ 시각과 화면 갱신
 function currentT() {
   if (!app.fire) return null;
+  if (!app.fire.clockStarted) return app.fire.noticeMin;
   return app.fire.noticeMin + ((Date.now() - app.fire.receivedAt) / 60000) * app.speed;
 }
 
@@ -461,7 +466,7 @@ async function main() {
   const first = (linked && list.some((m) => m.id === linked.mountain) && linked.mountain) || localStorage.getItem('mountain') || 'bukhansan';
   await loadMountain(list.some((m) => m.id === first) ? first : list[0].id);
   if (linked) await applyFireLink(location.hash);
-  setInterval(refresh, 1000);
+  setInterval(refresh, 250);      // 1초에 4번: 빠른 배속(×600)에서도 불이 부드럽게 번지게
 }
 
 main().catch((e) => toast(`시작 실패: ${e.message}`, 10000));
