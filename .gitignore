@@ -35,3 +35,7 @@ data/raw/
 
 # WebAssembly 빌드 도구 (tools/build_wasm.sh 가 자동으로 받음)
 tools/_wasi-sdk/
+# Windows 앱 묶기(make_app.bat) 결과와 가상환경
+.venv_app/
+build/
+dist/

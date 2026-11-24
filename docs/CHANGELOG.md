@@ -690,3 +690,19 @@
 | 한라산 | 13곳 (679~1,071 m) | 5팀 모두 하산 완료 |
 - 가상 산 위험 시나리오: 5팀 모두 하산 시작, 고립 1팀·위험 2팀 7명 (발견·통보 지연 140분 때문)
 - `main` 에 합칠 때 휴대폰 앱 엔진(`mobile/engine/wildfire.wasm`)을 새 대피 방침으로 다시 빌드, 앱 저장 버전 v1 → v2 (휴대폰에 저장된 옛 엔진·등산로를 한 번에 새것으로)
+
+## 실행을 쉽게: 실행.bat + Windows 앱 묶기 (feature/desktop-app, 2026-11-24)
+
+### 요청
+- 실행 방법이 복잡함 → ① 더블클릭 실행 ② Python 없이 실행되는 Windows 앱
+- 두 앱의 역할을 확실히: PC 프로그램 = 관공서용(산불 예측·헬기·방화선 배치·등산객 대피 파악), 휴대폰 앱 = 등산객용(미리 받은 지도로 내 위치 기준 대피 안내)
+
+### 만든 것
+- `실행.bat`: Python 확인 → 라이브러리 설치(처음 한 번) → C 엔진 빌드(없거나 C 코드가 더 새로울 때) → GUI 실행
+- `make_app.bat`: 가상환경 + PyInstaller 로 GUI 를 `WildfireResponse.exe` 로 묶고, 엔진·산 자료·설정 예시·사용법을 옆에 복사해 zip (API 키 파일은 넣지 않음)
+  - `tools/app/wildfire_app.spec`, `tools/app/requirements_app.txt`, `tools/app/사용법.txt`
+- `c_core/build.bat`: Developer Command Prompt 가 아니어도 vswhere 로 Visual Studio 를 찾아 빌드
+- `app_config`: 묶은 앱이면 exe 폴더를 기준으로 엔진·자료를 찾음
+- `WildfireResponse.exe --selftest` (또는 `python gui/main.py --selftest`): 산 목록 → 엔진 실행 → 결과 읽기를 스스로 점검해 `output/selftest.txt` 에 기록
+- Linux 에서 같은 설정으로 묶어 점검: 약 270 MB, 자기 점검 성공 (북한산 피해 34.6 ha, 5팀 하산 완료). Windows 에서는 make_app.bat 으로 확인 필요
+- README·발표 메모·CLAUDE.md 에 두 앱의 역할 정리

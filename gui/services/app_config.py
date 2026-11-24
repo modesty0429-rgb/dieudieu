@@ -11,7 +11,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# 묶은 앱(make_app.bat 으로 만든 exe)이면 exe 가 있는 폴더, 아니면 저장소 폴더
+FROZEN = bool(getattr(sys, "frozen", False))
+PROJECT_ROOT = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parents[2]
 ENGINE_DIR = PROJECT_ROOT / "c_core"
 DATA_DIR = PROJECT_ROOT / "data"
 SCENARIO_DIR = DATA_DIR / "scenarios"

@@ -9,9 +9,11 @@ setlocal
 cd /d "%~dp0"
 
 where cl >nul 2>nul
+if errorlevel 1 call :find_visual_studio
+where cl >nul 2>nul
 if errorlevel 1 (
-    echo [오류] cl.exe 를 찾을 수 없습니다.
-    echo        시작 메뉴에서 "Developer Command Prompt for VS 2022" 를 열고 다시 실행하세요.
+    echo [오류] cl.exe 를 찾을 수 없습니다. Visual Studio 2022 의 "C++를 사용한 데스크톱 개발"이 설치돼 있는지 확인하세요.
+    echo        또는 시작 메뉴에서 "Developer Command Prompt for VS 2022" 를 열고 다시 실행하세요.
     exit /b 1
 )
 
@@ -36,5 +38,17 @@ if not exist bin\wildfire.exe (
 echo.
 echo [빌드 성공] %CD%\bin\wildfire.exe
 echo GUI 는 이 폴더의 exe 를 사용합니다. GUI 를 실행하는 저장소 폴더와 같은 곳인지 확인하세요.
-echo 실행 예: bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode printmap
+echo 실행 예: bin\wildfire.exe ..\data\scenarios\mountain_bukhansan.ini --mode printmap
 endlocal
+exit /b 0
+
+rem ------------------------------------------------------------
+rem  일반 명령 창에서 실행했을 때: vswhere 로 Visual Studio 를 찾아 컴파일러 환경(vcvars64)을 불러온다
+rem ------------------------------------------------------------
+:find_visual_studio
+set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+if not exist "%VSWHERE%" exit /b 0
+for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSDIR=%%i"
+if not defined VSDIR exit /b 0
+if exist "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" call "%VSDIR%\VC\Auxiliary\Build\vcvars64.bat" >nul
+exit /b 0

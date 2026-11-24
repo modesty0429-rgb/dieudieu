@@ -5,6 +5,12 @@
 
 **목표**: ① 기상 상태에 따른 산불 확산 양상 확인 → ② 예측해서 대피로 설정 → ③ 효율적인 산불 진압
 
+| | PC 프로그램 (관공서용) | 휴대폰 앱 (등산객용) |
+|---|---|---|
+| 누가 | 소방서·산림청·지자체 | 등산객 |
+| 하는 일 | 기상 상황에 따른 산불 번짐 예측, 소방 헬기·방화선 배치, 등산객 위치와 대피 경로 파악 | 방문할 산의 지도·등산로를 미리 내려받고, 산불이 나면 내 위치와 불 번짐으로 최적의 대피로 안내 |
+| 실행 | `WildfireResponse.exe` (또는 개발 중 `실행.bat`) | 휴대폰 브라우저에서 설치, 인터넷 없이 동작 |
+
 - **C 계산 엔진** (`c_core/`, `wildfire.exe`, 약 9,000줄): 지도 읽기, 확산 시뮬레이션, 대피 경로, 진화 전략, 몬테카를로 등 모든 계산
 - **Python GUI** (`gui/`·`tools/`, 약 4,400줄): 화면, 애니메이션, 기상청 API, 가상 지형 생성
 
@@ -17,32 +23,17 @@
 
 ## 빠른 시작
 
-1. **C 엔진 빌드** — "Developer Command Prompt for VS 2022"에서:
+**프로그램만 쓸 때 (Python·Visual Studio 필요 없음)**: 배포용 `WildfireResponse.zip` 을 풀고 `WildfireResponse.exe` 를 더블클릭합니다.
 
-   ```bat
-   cd (저장소 폴더)\c_core
-   build.bat
-   ```
+**저장소에서 실행할 때**: 저장소 폴더의 **`실행.bat`** 을 더블클릭합니다. (Python 3.12, Visual Studio 2022 필요)
+처음 한 번 라이브러리를 설치하고, C 엔진이 없거나 C 코드가 바뀌었으면 자동으로 빌드한 뒤 프로그램을 엽니다.
 
-2. **Python 패키지 설치** (Python 3.12, 저장소 폴더에서):
+**배포용 앱 만들기**: 저장소 폴더의 **`make_app.bat`** 을 더블클릭합니다. (몇 분)
+`dist\WildfireResponse\WildfireResponse.exe` 와 `dist\WildfireResponse.zip` 이 생깁니다. 확인하려면 명령 창에서
+`dist\WildfireResponse\WildfireResponse.exe --selftest` → `dist\WildfireResponse\output\selftest.txt` 에 "결과: 성공".
 
-   ```bash
-   python -m pip install -r gui/requirements.txt
-   ```
-
-3. **GUI 실행**:
-
-   ```bash
-   python gui/main.py
-   ```
-
-   왼쪽에서 시나리오를 고르고 **🔥 시뮬레이션 실행**을 누르면 됩니다.
-
-4. (선택) **자동 테스트** — 엔진과 Python 도우미 49개 항목:
-
-   ```bash
-   python tools/run_tests.py
-   ```
+**직접 하려면**: `c_core\build.bat` (일반 명령 창에서도 Visual Studio 를 찾아 빌드) → `python -m pip install -r gui/requirements.txt` → `python gui/main.py`.
+자동 테스트는 `python tools/run_tests.py`.
 
 ---
 
