@@ -84,11 +84,11 @@
       "PMNTN_SPOT_북한산_백운대_113050202.shp",
       "PMNTN_SPOT_북한산_114100801.shp"
     ],
-    "imported": "2026-11-22",
-    "nodes": 256,
-    "edges": 329,
-    "length_km": 183.2,
-    "spots_used": 243,
+    "imported": "2026-11-24",
+    "nodes": 190,
+    "edges": 256,
+    "length_km": 174.7,
+    "spots_used": 181,
     "hikers": 5,
     "gaps_bridged": 0,
     "provider": "산림청"

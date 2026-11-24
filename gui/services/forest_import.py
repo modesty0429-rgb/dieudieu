@@ -386,8 +386,68 @@ def build_graph(lines: list[TrailLine], snapped: dict[tuple[int, int], Spot]) ->
     return merge_degree_two(node_list, edges)
 
 
+NODE_MERGE_CELLS = 3          # 이만큼(90 m) 안에 붙어 있는 노드는 하나로 합친다 [가정]
+SPOT_PRIORITY_ALL = ["SUMMIT", "SHELTER", "PARKING", "AUTO", "JUNCTION", "POINT"]
+
+
+def merge_close_nodes(nodes: list[Node], edges: list[Edge],
+                      max_cells: int = NODE_MERGE_CELLS) -> tuple[list[Node], list[Edge]]:
+    """
+    아주 가까운 노드들을 하나로 합친다 (자료의 짧은 구간·겹친 지점 때문에 생긴 잔 노드 정리).
+    대표 노드는 정상 > 대피소 > 주차장 > ... 순서, 같으면 이름 있는 쪽. 간선은 대표 노드로 다시 잇는다.
+    """
+    parent = list(range(len(nodes)))
+
+    def find(a: int) -> int:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for i, a in enumerate(nodes):
+        for j in range(i + 1, len(nodes)):
+            b = nodes[j]
+            if (a.x - b.x) ** 2 + (a.y - b.y) ** 2 <= max_cells ** 2:
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = defaultdict(list)
+    for i in range(len(nodes)):
+        groups[find(i)].append(i)
+
+    def rank(i: int) -> tuple:
+        n = nodes[i]
+        kind = n.type if n.type in SPOT_PRIORITY_ALL else "POINT"
+        return (SPOT_PRIORITY_ALL.index(kind), not n.name, not n.spot)
+    new_index, merged = {}, []
+    for members in groups.values():
+        keep = min(members, key=rank)
+        node = nodes[keep]
+        node.cut = any(nodes[m].cut for m in members)
+        node.spot = any(nodes[m].spot for m in members)
+        for m in members:
+            new_index[m] = len(merged)
+        merged.append(node)
+
+    best: dict[tuple[int, int], Edge] = {}
+    for e in edges:
+        a, b = new_index[e.a], new_index[e.b]
+        if a == b:
+            continue                                   # 합쳐진 노드끼리의 짧은 간선은 없어짐
+        cells = [(merged[a].x, merged[a].y)] + e.cells[1:-1] + [(merged[b].x, merged[b].y)]
+        key = (min(a, b), max(a, b))
+        if key not in best or len(cells) < len(best[key].cells):
+            best[key] = Edge(a, b, cells)
+    return merged, list(best.values())
+
+
+def is_plain_spot(node: Node) -> bool:
+    """지점 자료로 생겼지만 고유 이름이 없는 갈림길·시종점 (길이 실제로 갈라지지 않으면 없애도 되는 점)"""
+    return node.spot and not node.name and node.type in ("JUNCTION", "AUTO")
+
+
 def merge_degree_two(nodes: list[Node], edges: list[Edge]) -> tuple[list[Node], list[Edge]]:
-    """이름 없는 '그냥 이어지는 점'(간선 2개, 지점 아님, 경계 아님)을 없애고 두 간선을 하나로 잇는다"""
+    """
+    '그냥 이어지는 점'(간선 2개, 경계 아님)을 없애고 두 간선을 하나로 잇는다.
+    지점 자료로 생긴 점도 이름이 없는 분기점·시종점이면 없앤다 (자료에는 분기점이지만 길이 갈라지지 않는 곳)
+    """
     changed = True
     while changed:
         changed = False
@@ -397,7 +457,7 @@ def merge_degree_two(nodes: list[Node], edges: list[Edge]) -> tuple[list[Node], 
             degree[e.b].append(i)
         for n, incident in degree.items():
             node = nodes[n]
-            if len(incident) != 2 or node.spot or node.cut:
+            if len(incident) != 2 or node.cut or (node.spot and not is_plain_spot(node)):
                 continue
             e1, e2 = edges[incident[0]], edges[incident[1]]
             if e1 is e2:
@@ -713,6 +773,8 @@ def import_trails(mountain_id: str, lines_path, spots_path=None, crs: str | None
     snapped = snap_spots(lines, spots)
     nodes, edges = build_graph(lines, snapped)
     bridged = bridge_gaps(nodes, edges)
+    nodes, edges = merge_close_nodes(nodes, edges)            # 잔 노드 정리
+    nodes, edges = merge_degree_two(nodes, edges)
     finish_nodes(nodes, edges, elevation, mountain)
     summit_on_trail(nodes, edges, elevation, mountain)
     add_high_points(nodes, edges, elevation)

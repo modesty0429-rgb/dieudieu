@@ -77,11 +77,11 @@
       "PMNTN_지리산_천왕봉_488605302.shp",
       "PMNTN_SPOT_지리산_천왕봉_488605302.shp"
     ],
-    "imported": "2026-11-22",
-    "nodes": 28,
-    "edges": 31,
-    "length_km": 60.8,
-    "spots_used": 19,
+    "imported": "2026-11-24",
+    "nodes": 26,
+    "edges": 28,
+    "length_km": 60.4,
+    "spots_used": 17,
     "hikers": 5,
     "gaps_bridged": 0,
     "provider": "산림청"

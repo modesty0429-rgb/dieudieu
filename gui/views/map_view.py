@@ -336,7 +336,16 @@ class MapView(QWidget):
         for node in self.map.nodes:
             color = theme.NODE_COLORS.get(node.kind, (200, 200, 200))
             symbol = "s" if node.is_exit else ("t" if node.kind == "SUMMIT" else "o")
-            spots.append({"pos": (node.x + 0.5, node.y + 0.5), "brush": pg.mkBrush(*color), "symbol": symbol})
+            spot = {"pos": (node.x + 0.5, node.y + 0.5), "brush": pg.mkBrush(*color), "symbol": symbol}
+            if crowded:
+                # 지점이 많은 지도: 갈림길은 작은 점, 출구는 조금 작게, 정상만 크게 (등산로와 등산객이 잘 보이도록)
+                if node.kind == "SUMMIT":
+                    spot["size"] = 14
+                elif node.is_exit:
+                    spot["size"] = 7
+                else:
+                    spot.update(size=4, pen=pg.mkPen(None), brush=pg.mkBrush(*color, 170))
+            spots.append(spot)
             if crowded and node.kind != "SUMMIT" and AUTO_NAME.fullmatch(node.name):
                 continue                      # 지점이 많으면 '갈림길12' 같은 자동 이름은 숨김 (점은 그대로)
             label = pg.TextItem(node.name, color=(235, 235, 235), anchor=(0, 1.2))

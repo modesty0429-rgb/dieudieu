@@ -62,11 +62,11 @@
       "PMNTN_설악산_대청봉_428302602.shp",
       "PMNTN_SPOT_설악산_대청봉_428302602.shp"
     ],
-    "imported": "2026-11-22",
-    "nodes": 31,
-    "edges": 36,
+    "imported": "2026-11-24",
+    "nodes": 28,
+    "edges": 33,
     "length_km": 69.5,
-    "spots_used": 23,
+    "spots_used": 20,
     "hikers": 5,
     "gaps_bridged": 0,
     "provider": "산림청"

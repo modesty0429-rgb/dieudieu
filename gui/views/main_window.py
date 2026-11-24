@@ -174,8 +174,24 @@ class MainWindow(QMainWindow):
         previous = app_config.OUTPUT_DIR / app_config.GUI_SCENARIO_NAME / "summary.json"
         if not previous.exists():
             previous = app_config.OUTPUT_DIR / app_config.DEFAULT_SCENARIO.stem / "summary.json"
-        if previous.exists():
+        if previous.exists() and self._result_matches_scenario(previous, self.panel.current_scenario()):
             self.load_result_file(previous, autoplay=False)
+
+    @staticmethod
+    def _result_matches_scenario(summary_path: Path, scenario_path: Path) -> bool:
+        """이전 결과가 지금 고른 산(같은 지형 파일)의 것인가. 다른 산의 결과를 띄우지 않기 위함"""
+        import json
+
+        from services.scenario_writer import read_ini
+        try:
+            grid = json.loads(summary_path.read_text(encoding="utf-8"))["grid"]
+            value = read_ini(scenario_path).get("map", "elevation_file", fallback="").split("#")[0].strip()
+        except (OSError, ValueError, KeyError):
+            return False
+        if not value:
+            return False
+        theirs = grid.get("elevation_file", "")
+        return bool(theirs) and (scenario_path.parent / value).resolve() == app_config.resolve_engine_path(theirs)
 
     # ------------------------------------------------------------------
     # 동작

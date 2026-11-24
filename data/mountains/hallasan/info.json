@@ -70,10 +70,10 @@
     "files": [
       "osm_trails.shp"
     ],
-    "imported": "2026-11-22",
-    "nodes": 34,
-    "edges": 27,
-    "length_km": 40.8,
+    "imported": "2026-11-24",
+    "nodes": 28,
+    "edges": 21,
+    "length_km": 40.4,
     "spots_used": 1,
     "hikers": 5,
     "gaps_bridged": 1,
