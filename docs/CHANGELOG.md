@@ -731,3 +731,9 @@
 - 지도 갱신은 센서 값이 올 때마다가 아니라 다음 화면 그리기 때 한 번 (배터리·속도)
 - 앱 저장 버전 v3 (compass.js 추가), 자동 테스트 5개 추가 (방위각, 회전각, 센서 값 변환, 경로 목표점, 안내 문장)
 - 브라우저(휴대폰 화면 크기)에서 GPS·나침반 값을 흉내 내 확인: 60°·200° 모두 지도 부채꼴과 안내 문장이 맞게 바뀜
+
+## 실행.bat 라이브러리 설치 오류 수정 (fix/requirements-encoding, 2026-11-25)
+- 증상: 한국어 Windows + 오래된 pip(Python 3.11)에서 `UnicodeDecodeError: 'cp949' codec can't decode` 로 설치 실패
+- 원인: 오래된 pip 는 requirements 파일을 Windows 기본 인코딩(cp949)으로 읽는데, 파일 안 한글 설명이 UTF-8 이었음
+- 수정: `tools/app/requirements_app.txt` 는 영어 설명만(ASCII), `gui/requirements.txt` 는 UTF-8 BOM 을 붙여 한글 설명 유지.
+  pip 와 같은 방식(cp949 환경)으로 두 파일을 읽어 확인. 실행.bat 오류 문구도 "인터넷 연결"로 단정하지 않게 고침

@@ -1,4 +1,5 @@
-# 프로그램 실행·앱 묶기에 필요한 라이브러리만 (자료 변환용 pyshp·pyproj·pyarrow 는 빼고)
+# Libraries needed to run the PC program and to package it (used by run/make_app .bat files).
+# Keep this file ASCII only: older pip reads it with the Windows default encoding (cp949 on Korean Windows).
 numpy>=1.26
 PySide6>=6.7
 pyqtgraph>=0.13.7

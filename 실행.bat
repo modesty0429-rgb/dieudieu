@@ -30,7 +30,7 @@ if errorlevel 1 (
     echo [준비] 필요한 라이브러리를 설치합니다. 처음 한 번만 몇 분 걸립니다...
     %PY% -m pip install --disable-pip-version-check -r tools\app\requirements_app.txt
     if errorlevel 1 (
-        echo [오류] 라이브러리 설치에 실패했습니다. 인터넷 연결을 확인하세요.
+        echo [오류] 라이브러리 설치에 실패했습니다. 위의 오류 메시지를 확인하세요. (인터넷 연결, Python 버전 등)
         pause
         exit /b 1
     )
