@@ -13,18 +13,22 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QHeaderView, QLabel, QTableWidget,
+from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QLabel,
+                               QPushButton, QSplitter, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
 import theme
-from services import map_render
+from services import heli_plan, map_render
 from services.result_loader import MapData, StrategyResult, SuppressionData
 
 COLUMNS = ["전략", "피해 면적", "감소율", "등산로 소실", "위험 팀 / 인원", "고립", "비화", "헬기 살수"]
+PLAN_COLUMNS = ["차수", "헬기", "시각", "발화 후", "위도, 경도", "위치", "해발", "숲", "목적"]
 DROP_COLOR = (90, 210, 255)
 
 
@@ -129,6 +133,7 @@ class SuppressionView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.data: SuppressionData | None = None
+        self.map_data: MapData | None = None
 
         self.info_label = QLabel("진화 전략 결과가 없습니다. 왼쪽에서 '진화 전략 비교 포함'을 켜고 실행하세요.")
         self.info_label.setWordWrap(True)
@@ -158,15 +163,116 @@ class SuppressionView(QWidget):
                         f'<span style="color:rgb(90,90,90)">■</span> 전소')
         legend.setObjectName("dim")
 
+        map_box = QWidget()
+        map_layout = QVBoxLayout(map_box)
+        map_layout.setContentsMargins(0, 0, 0, 0)
+        map_layout.addLayout(maps, 1)
+        map_layout.addWidget(legend)
+
+        # 아래쪽 위치를 조절할 수 있게: 위 = 두 전략 지도, 아래 = 헬기 살수 계획표
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.addWidget(map_box)
+        splitter.addWidget(self._build_plan_box())
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+
         layout = QVBoxLayout(self)
         layout.addWidget(self.info_label)
         layout.addWidget(self.table)
-        layout.addLayout(maps, 1)
-        layout.addWidget(legend)
+        layout.addWidget(splitter, 1)
+
+    # ------------------------------------------------------------------
+    # 헬기 살수 계획표 (관공서용: 어느 순서로, 언제, 어디에)
+    # ------------------------------------------------------------------
+    def _build_plan_box(self) -> QWidget:
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 4, 0, 0)
+        top = QHBoxLayout()
+        title = QLabel("🚁 <b>헬기 살수 계획</b>")
+        self.plan_combo = QComboBox()
+        self.plan_combo.currentIndexChanged.connect(self._fill_plan)
+        self.plan_save = QPushButton("CSV로 저장 (엑셀)")
+        self.plan_save.clicked.connect(self._save_plan)
+        top.addWidget(title)
+        top.addWidget(QLabel("전략"))
+        top.addWidget(self.plan_combo)
+        top.addStretch(1)
+        top.addWidget(self.plan_save)
+        self.plan_note = QLabel("")
+        self.plan_note.setObjectName("dim")
+        self.plan_note.setWordWrap(True)
+        self.plan_table = QTableWidget(0, len(PLAN_COLUMNS))
+        self.plan_table.setHorizontalHeaderLabels(PLAN_COLUMNS)
+        self.plan_table.verticalHeader().setVisible(False)
+        self.plan_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.plan_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        header = self.plan_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(len(PLAN_COLUMNS) - 1, QHeaderView.ResizeMode.Stretch)
+        self.plan_table.itemSelectionChanged.connect(self._on_plan_selected)
+        layout.addLayout(top)
+        layout.addWidget(self.plan_note)
+        layout.addWidget(self.plan_table, 1)
+        self.plan_rows: list[heli_plan.DropRow] = []
+        return box
+
+    def _fill_plan(self) -> None:
+        self.plan_table.setRowCount(0)
+        self.plan_rows = []
+        if self.data is None or self.map_data is None:
+            self.plan_note.setText("")
+            return
+        strategy = self.data.by_key(self.plan_combo.currentData())
+        self.plan_rows = heli_plan.build_drop_plan(self.map_data, strategy)
+        self.plan_note.setText(heli_plan.summary_text(self.plan_rows, self.data.settings)
+                               + "  줄을 누르면 위 지도가 그 위치로 이동합니다.")
+        self.plan_table.setRowCount(len(self.plan_rows))
+        last_wave = None
+        for row, r in enumerate(self.plan_rows):
+            where = f"{r.lat:.5f}, {r.lon:.5f}" if r.lat is not None else f"격자 ({r.x}, {r.y})"
+            values = [f"{r.wave}차" if r.wave != last_wave else "", f"{r.heli}호기",
+                      r.clock or "-", f"{r.t_min:.0f}분", where, r.landmark or "-",
+                      f"{r.elevation_m:.0f} m", r.fuel, r.purpose]
+            last_wave = r.wave
+            for column, text in enumerate(values):
+                item = QTableWidgetItem(text)
+                if column < 4 or column == 6:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.plan_table.setItem(row, column, item)
+        self.plan_save.setEnabled(bool(self.plan_rows))
+
+    def _on_plan_selected(self) -> None:
+        rows = self.plan_table.selectionModel().selectedRows()
+        if not rows or rows[0].row() >= len(self.plan_rows):
+            return
+        r = self.plan_rows[rows[0].row()]
+        span = 25                                   # 살수 지점 주변 약 1.5 km
+        self.left.plot.setRange(xRange=(r.x - span, r.x + span), yRange=(r.y - span, r.y + span), padding=0)
+        for view in (self.left, self.right):
+            view.set_time(r.t_min)                  # 그 살수 시각의 불 모습
+
+    def _save_plan(self) -> None:
+        if not self.plan_rows:
+            return
+        name = f"헬기살수계획_{self.plan_combo.currentText().replace(' ', '')}.csv"
+        path, _ = QFileDialog.getSaveFileName(self, "헬기 살수 계획 저장", name, "CSV (*.csv)")
+        if path:
+            heli_plan.save_csv(self.plan_rows, Path(path))
 
     # ------------------------------------------------------------------
     def set_data(self, data: SuppressionData | None, map_data: MapData | None) -> None:
         self.data = data
+        self.map_data = map_data
+        self.plan_combo.blockSignals(True)
+        self.plan_combo.clear()
+        if data is not None:
+            for s in data.strategies:
+                if s.use_helicopters:
+                    self.plan_combo.addItem(s.name, s.key)
+            self.plan_combo.setCurrentIndex(self.plan_combo.count() - 1)      # 방화선 + 헬기
+        self.plan_combo.blockSignals(False)
+        self._fill_plan()
         self.table.setRowCount(0)
         for view in (self.left, self.right):
             view.combo.blockSignals(True)
