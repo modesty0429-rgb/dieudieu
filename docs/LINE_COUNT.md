@@ -1,6 +1,6 @@
 # 줄 수 현황 (LINE_COUNT)
 
-> `python tools/count_lines.py` 로 자동 생성 — 2026-11-24
+> `python tools/count_lines.py` 로 자동 생성 — 2026-11-25
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|

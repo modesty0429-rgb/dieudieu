@@ -15,6 +15,7 @@ import { parseTrails, attachMe, writeTrailFile, writeHikerFile, routePolyline } 
 import { encodeFire, decodeFire, windName } from './fireinfo.js';
 import { LEVELS, parseGrid, assessAlert, dangerTime, nightLevel, sampleAt, seasonOf, SEASON_NAMES, minutesText } from './status.js';
 import { parseAscInts, burnableCodes, nearestForest } from './fuel.js';
+import { startCompass, bearingDeg, routeTarget, turnDeg, turnText, directionName } from './compass.js';
 
 const $ = (id) => document.getElementById(id);
 const app = {
@@ -32,6 +33,9 @@ const app = {
   follow: false,       // 안내대로 걸어서 대피 (데모)
   lastLevel: 0,
   gpsWatch: null,
+  heading: null,       // 나침반: 내가 바라보는 방위각 (북 0°), 센서가 없으면 null
+  compass: 'off',      // 'off' | 'on' | 'none' (센서 없음·허락 안 함)
+  walkHeading: null,   // 데모 걷기: 걸어가는 방향 (센서가 없는 PC 에서도 방향을 보여 줌)
   computing: false,
   pending: false,
 };
@@ -296,11 +300,17 @@ function refresh() {
   let walkStatus = null;
   if (app.follow && res && res.hiker) {
     const p = sampleAt(res.hiker.samples, t);
-    if (p) { app.me = { ...app.me, x: p.x, y: p.y, source: 'demo', acc: 0 }; walkStatus = p.status; }
+    if (p) {
+      // 걸어가는 방향: 지금 위치 → 3분 뒤 위치 (화면 갱신 사이 이동은 너무 짧아 방향이 흔들리므로)
+      const ahead = sampleAt(res.hiker.samples, t + 3);
+      if (ahead && Math.hypot(ahead.x - p.x, ahead.y - p.y) > 0.2) app.walkHeading = bearingDeg(p.x, p.y, ahead.x, ahead.y);
+      app.me = { ...app.me, x: p.x, y: p.y, source: 'demo', acc: 0 };
+      walkStatus = p.status;
+    }
   }
   map.update({
     arrival: res ? res.arrival : null, burnout: res ? res.burnout : null, t: res ? Math.floor(t) : null,
-    route: res ? res.route : null, fire: app.fire ? app.fire.cell : null, me: app.me,
+    route: res ? res.route : null, fire: app.fire ? app.fire.cell : null, me: app.me, heading: shownHeading(),
     night: res ? nightLevel(res.summary.daylight, t) : 0,
   });
 
@@ -319,6 +329,7 @@ function refresh() {
     $('alert-remaining').textContent = '';
     $('alert-advice').textContent = '불 정보를 받으면 휴대폰이 직접 계산해 대피 경로를 알려 줍니다.';
     ['info-route', 'info-weather', 'info-sun'].forEach((id) => ($(id).textContent = ''));
+    $('info-heading').textContent = headingAdvice(null, app.me, null);
     return;
   }
   if (!res) {
@@ -343,6 +354,7 @@ function refresh() {
     advice = `대피 중 👉 ${route.exit_name} 방향. ${advice}`;
   }
   $('alert-advice').textContent = advice;
+  $('info-heading').textContent = headingAdvice(res, me, walkStatus);
   $('info-route').textContent = route.found
     ? `🧭 추천 대피: ${route.exit_name}까지 ${Math.round(route.travel_time_min)}분${route.min_margin_min !== null ? ` · 가장 위험한 곳에서도 불보다 ${Math.round(route.min_margin_min)}분 먼저 지나감` : ''}`
     : '🧭 안전한 대피 경로 없음';
@@ -390,11 +402,46 @@ function onMapTap(cell) {
 }
 
 // ------------------------------------------------------------ 버튼
+// ------------------------------------------------------------ 바라보는 방향 (나침반)
+async function turnOnCompass() {
+  if (app.compass !== 'off') return;
+  app.compass = 'on';
+  const ok = await startCompass((deg) => {
+    app.heading = deg;
+    map.setHeading(shownHeading());
+  });
+  // 3초 안에 방향 값이 한 번도 오지 않으면 (센서 없음·허락 안 함) 위치만 표시한다고 알림
+  setTimeout(() => {
+    if (ok && app.heading !== null) return;
+    app.compass = 'none';
+    toast('이 휴대폰에서는 방향(나침반)을 읽을 수 없습니다. 위치만 표시합니다.');
+  }, ok ? 3000 : 0);
+}
+
+/** 지도에 그릴 방향: 나침반 값, 없으면 데모로 걸어가는 방향 */
+function shownHeading() {
+  if (app.heading !== null) return app.heading;
+  return app.follow ? app.walkHeading : null;
+}
+
+/** 바라보는 방향과 대피로 방향을 비교한 안내. 예: '👀 바라보는 방향 북동 · 대피로는 오른쪽으로 40° (남동쪽)' */
+function headingAdvice(res, me, walkStatus) {
+  const h = shownHeading();
+  if (h === null || !me) return '';
+  const facing = `👀 바라보는 방향: ${directionName(h)} ${Math.round(h)}°`;
+  if (!res || !res.route || !res.hiker.route.found || walkStatus === 2) return facing;
+  const target = routeTarget(res.route, me);
+  if (!target) return facing;
+  const bearing = bearingDeg(me.x, me.y, target.x, target.y);
+  return `${facing} · 대피로는 ${turnText(turnDeg(h, bearing), bearing)}`;
+}
+
 function bindUi() {
   $('mountain').addEventListener('change', (e) => loadMountain(e.target.value));
   $('btn-gps').onclick = () => {
     if (app.me && app.me.source !== 'gps') { app.follow = false; $('demo-follow').checked = false; }
     startGps();
+    turnOnCompass();
     if (app.me) map.centerOn(app.me.x, app.me.y);
   };
   $('btn-fire').onclick = () => $('dlg-fire').showModal();
