@@ -259,8 +259,14 @@ class MainWindow(QMainWindow):
 
     def _open_mobile_dialog(self) -> None:
         """(11단계) 관제: 지금 발화 지점·날씨를 휴대폰 앱 링크·QR 로"""
-        from views.mobile_dialog import MobileDialog
-        MobileDialog(self.panel, self).exec()
+        try:
+            from views.mobile_dialog import MobileDialog
+            MobileDialog(self.panel, self).exec()
+        except Exception as error:           # noqa: BLE001 — 아무 반응 없이 끝나지 않게 오류를 보여 준다
+            import traceback
+            traceback.print_exc()
+            QMessageBox.warning(self, "휴대폰으로 보내기", f"창을 열지 못했습니다:\n{type(error).__name__}: {error}\n\n"
+                                "명령 창(터미널)에 자세한 오류가 있습니다.")
 
     def _on_season_preview(self, season, snow_line_m: float) -> None:
         """(9단계) 왼쪽에서 계절을 고르면 바로 지도 색을 바꿔 보여 준다. (다음 실행 결과도 같은 계절)"""
