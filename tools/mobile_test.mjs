@@ -87,5 +87,19 @@ check('날씨 없음 → 계절 평년 날씨 (1월 → 겨울, 북한산 눈 �
       sum2 && sum2.season.key === 'winter' && sum2.season.weather_from_season && sum2.season.snow_line_m === 600,
       JSON.stringify(sum2?.season));
 
+// 6) 바라보는 방향(나침반): 방위각 계산과 대피로까지 돌아야 할 각도
+const C = await M('compass.js');
+check('나침반: 방위각 (위 = 북 0°, 오른쪽 = 동 90°, 아래 = 남 180°)',
+      C.bearingDeg(10, 10, 10, 0) === 0 && C.bearingDeg(10, 10, 20, 10) === 90 && C.bearingDeg(10, 10, 10, 20) === 180);
+check('나침반: 돌아야 할 각도 (350° → 10° 는 오른쪽 20°, 10° → 350° 는 왼쪽 20°)',
+      C.turnDeg(350, 10) === 20 && C.turnDeg(10, 350) === -20);
+check('나침반: 센서 값 → 방위각 (아이폰 webkitCompassHeading, 안드로이드 360 − alpha, 화면 90° 회전)',
+      C.headingFromEvent({ webkitCompassHeading: 45 }) === 45 && C.headingFromEvent({ absolute: true, alpha: 90 }) === 270 &&
+      C.headingFromEvent({ absolute: true, alpha: 0 }, 90) === 90 && C.headingFromEvent({ absolute: false, alpha: 10 }) === null);
+const path6 = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [5, 5]];
+const tgt = C.routeTarget(path6, { x: 1, y: 0 }, 4);
+check('나침반: 대피로에서 조금 앞의 점을 목표로', tgt && tgt.x === 5 && tgt.y === 0, JSON.stringify(tgt));
+check('나침반: 안내 문장', C.turnText(40, 135) === '오른쪽으로 40° (남동쪽)' && C.turnText(-5, 0) === '앞으로 계속 (북쪽)');
+
 console.log(`\n결과: ${pass}/${pass + fail} 통과`);
 process.exit(fail ? 1 : 0);

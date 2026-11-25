@@ -43,7 +43,15 @@ export class MapView {
 
   setTerrain(image) { this.terrain = image; this.draw(); }
 
-  /** state: { arrival, burnout (Float32Array), t (발화 후 분), route [[x,y]], fire {x,y}, me {x,y,acc}, night 0~1 } */
+  /** 바라보는 방향만 바뀔 때: 센서가 1초에 수십 번 알려 주므로 화면은 다음 그리기 때 한 번만 다시 그림 */
+  setHeading(deg) {
+    this.state = { ...this.state, heading: deg };
+    if (this._headingFrame) return;
+    this._headingFrame = requestAnimationFrame(() => { this._headingFrame = null; this.draw(); });
+  }
+
+  /** state: { arrival, burnout (Float32Array), t (발화 후 분), route [[x,y]], fire {x,y}, me {x,y,acc}, night 0~1,
+   *           heading (내가 바라보는 방위각 °, 북 0° — 없으면 null) } */
   update(state) {
     this.state = { ...this.state, ...state };
     if ('arrival' in state || 't' in state) this.fireT = null;
@@ -236,8 +244,31 @@ export class MapView {
         ctx.arc(s.me.x + 0.5, s.me.y + 0.5, s.me.acc / this.meta.cell_m, 0, Math.PI * 2);
         ctx.fill();
       }
+      if (typeof s.heading === 'number') this._headingCone(s.me.x, s.me.y, s.heading, lw(70), lw(1.5));
       this._dot(s.me.x, s.me.y, lw(8), COLORS.me, '#ffffff', lw(3));
     }
+  }
+
+  /** 내 위치에서 바라보는 방향으로 퍼지는 부채꼴 (지도 위쪽 = 북쪽, 방위각은 시계 방향) */
+  _headingCone(x, y, heading, length, edge) {
+    const ctx = this.ctx;
+    const a = ((heading - 90) * Math.PI) / 180;          // 캔버스 각도: 오른쪽 0, 시계 방향
+    const half = (28 * Math.PI) / 180;                  // 부채꼴 반각 28°
+    const cx = x + 0.5;
+    const cy = y + 0.5;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, length);
+    grad.addColorStop(0, 'rgba(96,165,250,0.95)');
+    grad.addColorStop(0.7, 'rgba(59,130,246,0.55)');
+    grad.addColorStop(1, 'rgba(59,130,246,0.1)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, length, a - half, a + half);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = edge;                               // 밝은 바탕(가을 단풍 등)에서도 보이도록 테두리
+    ctx.strokeStyle = 'rgba(239,246,255,0.9)';
+    ctx.stroke();
   }
 
   _dot(x, y, r, fill, stroke, width) {

@@ -4,10 +4,10 @@
 //   다른 산은 설정의 '이 산 오프라인 저장'으로 저장한다.
 //   요청이 오면 저장된 것을 먼저 쓰고(오프라인에서도 바로 열림), 인터넷이 되면 뒤에서 새것으로 바꿔 둔다.
 // ============================================================
-const CACHE = 'dieudieu-mobile-v2';   // 엔진·등산로가 바뀌면 숫자를 올려 휴대폰에 저장된 옛 파일을 한 번에 바꾼다
+const CACHE = 'dieudieu-mobile-v3';   // 엔진·등산로가 바뀌면 숫자를 올려 휴대폰에 저장된 옛 파일을 한 번에 바꾼다
 const SHELL = [
   './', 'index.html', 'style.css', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
-  'js/app.js', 'js/mapview.js', 'js/geo.js', 'js/ini.js', 'js/trails.js', 'js/fireinfo.js', 'js/status.js', 'js/fuel.js',
+  'js/app.js', 'js/mapview.js', 'js/geo.js', 'js/ini.js', 'js/trails.js', 'js/fireinfo.js', 'js/status.js', 'js/fuel.js', 'js/compass.js',
   'js/engine_core.js', 'js/engine_worker.js', 'engine/wildfire.wasm',
   'vendor/browser_wasi_shim/wasi.js', 'vendor/browser_wasi_shim/wasi_defs.js', 'vendor/browser_wasi_shim/fd.js',
   'vendor/browser_wasi_shim/fs_mem.js', 'vendor/browser_wasi_shim/debug.js',
