@@ -66,6 +66,7 @@ class MapData:
     start_time: datetime | None = None
     season: str | None = None      # (9단계) 계절 키 spring/summer/autumn/winter (없으면 None)
     snow_line_m: float = 0.0       # (9단계) 눈 경계 고도, 0 이면 눈 없음
+    elevation_path: Path | None = None   # 지형 파일 (실제 산이면 data/mountains/<산 id>/elev.asc → 위경도 계산에 씀)
 
     @property
     def height(self) -> int:
@@ -376,7 +377,8 @@ def _load_map(name: str, elevation_path: Path, fuel_path: Path,
     header, elevation = read_asc(elevation_path)
     _, fuel = read_asc(fuel_path)
     fuel = np.where(fuel < 0, 0, fuel).astype(np.int32)        # NODATA → 0
-    data = MapData(name=name, elevation=elevation, fuel=fuel, cell_size=header.get("cellsize", 30.0))
+    data = MapData(name=name, elevation=elevation, fuel=fuel, cell_size=header.get("cellsize", 30.0),
+                   elevation_path=elevation_path)
     if trail_path and trail_path.exists():
         data.nodes, data.edges = read_trails(trail_path)
     if hiker_path and hiker_path.exists():

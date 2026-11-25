@@ -5,8 +5,8 @@
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9982 | 약 8,000 | 125% |
-| Python | 9122 | 약 4,000 | 228% |
-| **합계** | **19104** | **약 12,000** | **159%** |
+| Python | 9403 | 약 4,000 | 235% |
+| **합계** | **19385** | **약 12,000** | **162%** |
 
 ## C
 
@@ -78,13 +78,14 @@
 | `gui/services/daylight_render.py` | 92 | 54 | 21 | 17 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
 | `gui/services/forest_import.py` | 1153 | 844 | 149 | 160 |
+| `gui/services/heli_plan.py` | 143 | 102 | 16 | 25 |
 | `gui/services/hiker_setup.py` | 230 | 151 | 40 | 39 |
 | `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
 | `gui/services/mobile_link.py` | 76 | 49 | 10 | 17 |
 | `gui/services/mountain_builder.py` | 475 | 277 | 116 | 82 |
 | `gui/services/overture_trails.py` | 195 | 130 | 28 | 37 |
-| `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
-| `gui/services/result_loader.py` | 482 | 355 | 43 | 84 |
+| `gui/services/report_builder.py` | 185 | 65 | 92 | 28 |
+| `gui/services/result_loader.py` | 484 | 357 | 43 | 84 |
 | `gui/services/scenario_writer.py` | 152 | 104 | 25 | 23 |
 | `gui/services/season_render.py` | 238 | 155 | 48 | 35 |
 | `gui/services/weather_api.py` | 376 | 249 | 66 | 61 |
@@ -101,7 +102,7 @@
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
 | `gui/views/scenario_panel.py` | 484 | 385 | 48 | 51 |
 | `gui/views/stats_view.py` | 226 | 181 | 18 | 27 |
-| `gui/views/suppression_view.py` | 226 | 180 | 16 | 30 |
+| `gui/views/suppression_view.py` | 332 | 275 | 20 | 37 |
 | `gui/views/weather_dialog.py` | 246 | 205 | 16 | 25 |
 | `tools/_wasi-sdk/wasi-sdk-24.0-x86_64-linux/share/clang/clang-format-diff.py` | 193 | 146 | 31 | 16 |
 | `tools/_wasi-sdk/wasi-sdk-24.0-x86_64-linux/share/clang/clang-format-sublime.py` | 73 | 49 | 19 | 5 |
@@ -110,5 +111,5 @@
 | `tools/build_mobile.py` | 84 | 59 | 10 | 15 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
-| `tools/run_tests.py` | 719 | 572 | 64 | 83 |
-| **합계** | **9122** | **6525** | **1321** | **1276** |
+| `tools/run_tests.py` | 726 | 579 | 64 | 83 |
+| **합계** | **9403** | **6759** | **1333** | **1311** |

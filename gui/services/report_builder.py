@@ -125,7 +125,30 @@ def _suppression(result: SimulationResult) -> str:
             f"<p>방화선 {len(sup.firebreak_cells)}칸({len(sup.firebreak_steps)}개 조각, {cfg['firebreak_ready_min']:.0f}분 완성), "
             f"헬기 {cfg['helicopters']}대({cfg['heli_interval_min']:.0f}분 간격). {_esc(sup.combined_plan_text())}</p>"
             + _table(["전략", "피해 면적 (ha)", "감소율", "등산로 소실 (km)", "위험 팀 / 인원", "비화", "헬기 살수"], rows)
-            + f"<p>위험 인원과 피해 면적이 가장 작은 전략: <span class='good'>{_esc(best.name)}</span></p>")
+            + f"<p>위험 인원과 피해 면적이 가장 작은 전략: <span class='good'>{_esc(best.name)}</span></p>"
+            + _heli_plan(result))
+
+
+def _heli_plan(result: SimulationResult) -> str:
+    """헬기 살수 계획표 (방화선 + 헬기 전략): 어느 순서로, 언제, 어디에"""
+    from services import heli_plan
+
+    sup = result.suppression
+    strategy = next((s for s in reversed(sup.strategies) if s.use_helicopters), None)
+    rows = heli_plan.build_drop_plan(result.map, strategy)
+    if not rows:
+        return ""
+    body = []
+    last_wave = None
+    for r in rows:
+        where = f"{r.lat:.5f}, {r.lon:.5f}" if r.lat is not None else f"격자 ({r.x}, {r.y})"
+        body.append([f"{r.wave}차" if r.wave != last_wave else "", f"{r.heli}호기", _esc(r.clock or "-"),
+                     f"{r.t_min:.0f}분", where, _esc(r.landmark or "-"), f"{r.elevation_m:.0f} m", _esc(r.fuel),
+                     _esc(r.purpose)])
+        last_wave = r.wave
+    return (f"<h3>헬기 살수 계획 ({_esc(strategy.name)})</h3>"
+            f"<p class='note'>{_esc(heli_plan.summary_text(rows, sup.settings))}</p>"
+            + _table(["차수", "헬기", "시각", "발화 후", "위도, 경도", "위치", "해발", "숲", "목적"], body))
 
 
 def _monte_carlo(result: SimulationResult) -> str:

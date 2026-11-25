@@ -502,6 +502,13 @@ def test_python_helpers(tmp: Path) -> None:
               result.evacuation is not None and result.suppression is not None and result.montecarlo is not None)
         html_text = build_report_html(result, {})
         check("리포트 HTML 만들기", "진화 전략 비교" in html_text and "몬테카를로" in html_text)
+        from services import heli_plan
+        both = result.suppression.by_key("both")
+        rows = heli_plan.build_drop_plan(result.map, both)
+        check("헬기 살수 계획표 (살수마다 한 줄, 위경도·차수·호기·위치)",
+              len(rows) == len(both.drops) and (not rows or (rows[0].lat is not None and rows[0].wave == 1
+                                                              and rows[0].heli == 1 and rows[0].landmark)),
+              f"{len(rows)}줄 / 살수 {len(both.drops)}회")
     else:
         check("결과 읽기", False, "앞의 엔진 시험 결과가 없음")
 
