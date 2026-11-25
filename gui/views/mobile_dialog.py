@@ -9,10 +9,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from io import BytesIO
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextEdit,
                                QVBoxLayout)
 
@@ -20,17 +19,29 @@ from services import mobile_link
 
 
 def qr_pixmap(text: str, size: int = 260) -> QPixmap | None:
-    """링크 → QR 코드 그림 (qrcode 패키지가 없으면 None: 링크만 보여 줌)"""
+    """
+    링크 → QR 코드 그림. qrcode 패키지로 칸(검정/흰색) 배열만 만들고, 그림은 Qt 로 직접 그린다.
+    (pillow·pypng 같은 그림 도구가 없어도 동작. qrcode 가 없으면 None: 링크만 보여 줌)
+    """
     try:
         import qrcode
-    except ImportError:
+        qr = qrcode.QRCode(border=2)
+        qr.add_data(text)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+    except Exception:                       # noqa: BLE001 — QR 을 못 그려도 링크는 보여 준다
         return None
-    image = qrcode.make(text, border=2)
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    pixmap = QPixmap()
-    pixmap.loadFromData(buffer.getvalue(), "PNG")
-    return pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
+    n = len(matrix)
+    scale = max(1, size // n)
+    image = QImage(n * scale, n * scale, QImage.Format.Format_RGB32)
+    image.fill(QColor("white"))
+    painter = QPainter(image)
+    for y, row in enumerate(matrix):
+        for x, dark in enumerate(row):
+            if dark:
+                painter.fillRect(x * scale, y * scale, scale, scale, QColor("black"))
+    painter.end()
+    return QPixmap.fromImage(image)
 
 
 class MobileDialog(QDialog):
@@ -100,7 +111,7 @@ class MobileDialog(QDialog):
         try:
             message = mobile_link.build_message(p.current_scenario(), p.ignition_x.value(), p.ignition_y.value(),
                                                 when, self._weather(when))
-        except (ValueError, KeyError) as error:
+        except Exception as error:           # noqa: BLE001 — 어떤 오류든 창 안에 보여 준다
             self.info.setText(f"⚠ {error}")
             self.link.setText("")
             self.sms.setPlainText("")
