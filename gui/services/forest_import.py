@@ -40,7 +40,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # gui 폴더 (직
 
 from services import mountain_builder as mb  # noqa: E402
 from services.result_loader import read_asc  # noqa: E402
-from services.terrain_generator import write_asc  # noqa: E402
 
 FUEL_MAP_FILE = mb.MOUNTAIN_DIR / "forest_fuel_map.csv"
 MAX_WAYPOINTS = 64           # C 엔진 WF_MAX_WAYPOINTS 와 같음
@@ -1062,7 +1061,7 @@ def import_forest(mountain_id: str, shp_paths, crs: str | None = None, encoding:
     outside = int(covered.sum()) - int(painted.sum())
     final_codes = {f"fuel_{k}": int(v) for k, v in zip(*np.unique(fuel[painted], return_counts=True))}
     fuel[elevation <= 0.5] = mb.FUEL_WATER               # 바다(고도 0)는 물
-    write_asc(folder / "fuel.asc", fuel, mb.CELL_SIZE_M, "{:d}")
+    mb.write_asc(folder / "fuel.asc", fuel, mb.CELL_SIZE_M, "{:d}")
 
     info = mb.read_info(mountain_id)
     if info.get("ignition"):                             # 임상도로 발화 지점이 타지 않는 칸이 되면 가장 가까운 숲으로

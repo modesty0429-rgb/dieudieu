@@ -1,12 +1,12 @@
 # 줄 수 현황 (LINE_COUNT)
 
-> `python tools/count_lines.py` 로 자동 생성 — 2026-11-24
+> `python tools/count_lines.py` 로 자동 생성 — 2026-11-25
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9982 | 약 8,000 | 125% |
-| Python | 9439 | 약 4,000 | 236% |
-| **합계** | **19421** | **약 12,000** | **162%** |
+| Python | 9122 | 약 4,000 | 228% |
+| **합계** | **19104** | **약 12,000** | **159%** |
 
 ## C
 
@@ -77,18 +77,16 @@
 | `gui/services/app_config.py` | 73 | 38 | 19 | 16 |
 | `gui/services/daylight_render.py` | 92 | 54 | 21 | 17 |
 | `gui/services/engine_runner.py` | 166 | 109 | 24 | 33 |
-| `gui/services/forest_import.py` | 1154 | 845 | 149 | 160 |
+| `gui/services/forest_import.py` | 1153 | 844 | 149 | 160 |
 | `gui/services/hiker_setup.py` | 230 | 151 | 40 | 39 |
 | `gui/services/map_render.py` | 118 | 67 | 31 | 20 |
 | `gui/services/mobile_link.py` | 76 | 49 | 10 | 17 |
-| `gui/services/mountain_builder.py` | 461 | 266 | 115 | 80 |
+| `gui/services/mountain_builder.py` | 475 | 277 | 116 | 82 |
 | `gui/services/overture_trails.py` | 195 | 130 | 28 | 37 |
 | `gui/services/report_builder.py` | 162 | 37 | 100 | 25 |
 | `gui/services/result_loader.py` | 482 | 355 | 43 | 84 |
 | `gui/services/scenario_writer.py` | 152 | 104 | 25 | 23 |
 | `gui/services/season_render.py` | 238 | 155 | 48 | 35 |
-| `gui/services/terrain_generator.py` | 256 | 145 | 60 | 51 |
-| `gui/services/trail_generator.py` | 112 | 76 | 15 | 21 |
 | `gui/services/weather_api.py` | 376 | 249 | 66 | 61 |
 | `gui/theme.py` | 188 | 155 | 19 | 14 |
 | `gui/views/__init__.py` | 0 | 0 | 0 | 0 |
@@ -112,5 +110,5 @@
 | `tools/build_mobile.py` | 84 | 59 | 10 | 15 |
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
-| `tools/run_tests.py` | 681 | 542 | 58 | 81 |
-| **합계** | **9439** | **6706** | **1389** | **1344** |
+| `tools/run_tests.py` | 719 | 572 | 64 | 83 |
+| **합계** | **9122** | **6525** | **1321** | **1276** |

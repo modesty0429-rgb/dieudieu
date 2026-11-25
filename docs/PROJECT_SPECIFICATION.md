@@ -817,3 +817,6 @@ API 키 발급은 여러분이 공공데이터포털에서 직접 하셔야 합�
 - MSVC 빌드는 1단계에서 팀이 확인했다. 이후 단계는 팀 PC에서 다시 확인해야 한다.
 - 자동 테스트 26개(`python tools/run_tests.py`)
 
+> **2026-11-25 변경**: 처음에 만든 가상 산(`data/maps/virtual_*`, `data/trails/virtual_*`, `spring_dry_base` 등 시나리오 4개,
+> `terrain_generator.py`·`trail_generator.py`)은 모두 지웠다. 이 문서 앞부분의 가상 산 설명은 초기 설계 기록이며,
+> 지금은 실제 산 6곳만 쓰고 자동 테스트도 북한산을 기준으로 한다.

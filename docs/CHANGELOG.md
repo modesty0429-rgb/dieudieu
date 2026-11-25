@@ -706,3 +706,17 @@
 - `WildfireResponse.exe --selftest` (또는 `python gui/main.py --selftest`): 산 목록 → 엔진 실행 → 결과 읽기를 스스로 점검해 `output/selftest.txt` 에 기록
 - Linux 에서 같은 설정으로 묶어 점검: 약 270 MB, 자기 점검 성공 (북한산 피해 34.6 ha, 5팀 하산 완료). Windows 에서는 make_app.bat 으로 확인 필요
 - README·발표 메모·CLAUDE.md 에 두 앱의 역할 정리
+
+## 가상 산 삭제, 자동 테스트를 북한산 기준으로 (feature/remove-virtual, 2026-11-25)
+- 지움: `data/maps/virtual_mountain_*.asc`, `data/trails/virtual_*.txt`, 시나리오 `spring_dry_base`·`spring_danger_valley`·`calm_fixed_weather`·`evening_valley`,
+  생성기 `terrain_generator.py`·`trail_generator.py` (실제 산 도구가 쓰던 `write_asc` 는 `mountain_builder.py` 로 옮김)
+- 자동 테스트 79개를 모두 북한산 기준으로 다시 짬 (팀원 테스트 포함)
+  - 정상 실행 4개: 북한산 all·evac·printmap, 무풍(경사 효과)
+  - 재현성: 비화가 생기는 강풍·건조한 날로 (북한산 기본 설정은 비화 0회라 시드를 바꿔도 결과가 같음)
+  - 낮/밤: 북한산 18:00 발화, 남서 강풍, 신고 30분 지연 → 일몰 계산·밤 헬기 중지·밤 보행 기록
+  - 등산객 팀: 북한산 등산로에서 시험 좌표를 자동으로 고름
+  - 오류 시나리오 5개: 북한산 지도로 (물 위 발화 → 타지 않는 암벽 위 발화)
+  - 휴대폰 엔진 = PC 엔진 비교도 북한산으로
+- 엔진 사용 예시·README·문서를 북한산으로. 모델 설명서의 가상 산 실험 결과는 "초기 가상 산"으로 표시하고 북한산 결과를 추가
+  (북한산 시드 42: 대응 없음 34.7 ha → 방화선 1.3 ha, 헬기 0.5 ha, 방화선+헬기 0.5 ha / 몬테카를로 100회 평균 41.1 ha)
+- C 엔진(사용 예시 문구)·휴대폰 엔진 다시 빌드

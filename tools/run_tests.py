@@ -40,6 +40,9 @@ sys.path.insert(0, str(PROJECT_ROOT / "gui"))
 from services import app_config  # noqa: E402
 
 SCENARIOS = app_config.SCENARIO_DIR
+BASE = SCENARIOS / "mountain_bukhansan.ini"                 # 시험 기준: 북한산 (실제 지형·임상도·산림청 등산로)
+BUKHANSAN = app_config.DATA_DIR / "mountains" / "bukhansan"
+IGNITION = "98, 142"                                      # 북한산 기본 발화 지점 (숲 한가운데)
 results: list[tuple[str, bool, str]] = []
 
 
@@ -62,6 +65,16 @@ def run_engine(scenario: Path, mode: str, out_dir: Path | None = None, extra: li
     return done.returncode, done.stdout + done.stderr
 
 
+def write_variant(name: str, extra: str) -> Path:
+    """
+    북한산 시나리오에 설정을 덧붙인 시험용 시나리오 (data/scenarios/zz_test_<name>.ini, 쓰고 나면 지울 것).
+    산 시나리오의 상대 경로(../mountains/...)가 그대로 맞도록 같은 폴더에 만든다. 같은 구역을 다시 쓰면 뒤의 값이 이긴다.
+    """
+    path = SCENARIOS / f"zz_test_{name}.ini"
+    path.write_text(BASE.read_text(encoding="utf-8") + "\n" + extra, encoding="utf-8")
+    return path
+
+
 def file_hash(path: Path) -> str:
     return hashlib.md5(path.read_bytes()).hexdigest()
 
@@ -71,18 +84,22 @@ def file_hash(path: Path) -> str:
 # ----------------------------------------------------------------------
 def test_engine_scenarios(tmp: Path) -> None:
     print("\n[엔진] 정상 시나리오")
-    cases = [("spring_dry_base.ini", "all", ["summary.json", "evacuation.json", "suppression.json",
-                                              "mc_summary.json", "burn_probability.csv"]),
-             ("spring_danger_valley.ini", "evac", ["summary.json", "evacuation.json"]),
-             ("calm_fixed_weather.ini", "run", ["summary.json", "arrival_time.csv", "stats.csv"]),
-             ("spring_dry_base.ini", "printmap", [])]
-    for name, mode, files in cases:
-        out = tmp / f"{Path(name).stem}_{mode}"
-        extra = ["--seed", "7"] if mode == "all" else []
-        code, text = run_engine(SCENARIOS / name, mode, out, extra)
-        missing = [f for f in files if not (out / f).exists()]
-        check(f"{name} --mode {mode}", code == 0 and not missing and "[ERROR]" not in text,
-              f"종료 코드 {code}, 없는 파일 {missing}")
+    calm = write_variant("calm", "[weather]\nmode = fixed\nfixed_wind_speed_ms = 0\n")   # 무풍: 경사 효과만
+    cases = [(BASE, "all", ["summary.json", "evacuation.json", "suppression.json",
+                            "mc_summary.json", "burn_probability.csv"]),
+             (BASE, "evac", ["summary.json", "evacuation.json"]),
+             (calm, "run", ["summary.json", "arrival_time.csv", "stats.csv"]),
+             (BASE, "printmap", [])]
+    try:
+        for path, mode, files in cases:
+            out = tmp / f"{path.stem}_{mode}"
+            extra = ["--seed", "7"] if mode == "all" else []
+            code, text = run_engine(path, mode, out, extra)
+            missing = [f for f in files if not (out / f).exists()]
+            check(f"{path.stem} --mode {mode}", code == 0 and not missing and "[ERROR]" not in text,
+                  f"종료 코드 {code}, 없는 파일 {missing}")
+    finally:
+        calm.unlink(missing_ok=True)
 
 
 def test_engine_errors(tmp: Path) -> None:
@@ -90,29 +107,33 @@ def test_engine_errors(tmp: Path) -> None:
     for name in ["bad_values", "bad_ignition", "missing_file", "bad_trail", "bad_weather"]:
         code, text = run_engine(SCENARIOS / "tests" / f"{name}.ini", "run", tmp / name)
         check(f"tests/{name}.ini", code == 1 and "[ERROR]" in text, f"종료 코드 {code}")
-    code, text = run_engine(SCENARIOS / "spring_dry_base.ini", "run", None, ["--seed", "-3"])
+    code, text = run_engine(BASE, "run", None, ["--seed", "-3"])
     check("잘못된 명령줄 인자 (--seed -3)", code == 1 and "사용법" in text, f"종료 코드 {code}")
 
 
 def test_reproducibility(tmp: Path) -> None:
     print("\n[엔진] 재현성 (같은 시드 → 같은 결과)")
-    hashes = []
-    for i in range(2):
-        out = tmp / f"repeat{i}"
-        run_engine(SCENARIOS / "spring_dry_base.ini", "run", out)
-        hashes.append([file_hash(out / f) for f in ("arrival_time.csv", "burnout_time.csv", "stats.csv")])
-    check("두 번 실행한 결과 CSV 3개가 같음", hashes[0] == hashes[1])
-    out = tmp / "seed99"
-    run_engine(SCENARIOS / "spring_dry_base.ini", "run", out, ["--seed", "99"])
-    check("시드를 바꾸면 결과가 달라짐", file_hash(out / "arrival_time.csv") != hashes[0][0])
+    # 비화(불씨 날림)가 생겨야 난수가 결과에 영향을 주므로 강풍·건조한 날로 시험
+    windy = write_variant("windy", "[weather]\nmode = fixed\nfixed_wind_speed_ms = 11\nfixed_rh_pct = 15\n")
+    try:
+        hashes = []
+        for i in range(2):
+            out = tmp / f"repeat{i}"
+            run_engine(windy, "run", out)
+            hashes.append([file_hash(out / f) for f in ("arrival_time.csv", "burnout_time.csv", "stats.csv")])
+        check("두 번 실행한 결과 CSV 3개가 같음", hashes[0] == hashes[1])
+        out = tmp / "seed99"
+        run_engine(windy, "run", out, ["--seed", "99"])
+        check("시드를 바꾸면 결과가 달라짐 (강풍으로 비화가 생기는 날)", file_hash(out / "arrival_time.csv") != hashes[0][0])
+    finally:
+        windy.unlink(missing_ok=True)
 
 
 def write_edge_scenario(tmp: Path, name: str, extra: str, with_trails: bool = True) -> Path:
-    data = app_config.DATA_DIR
-    trails = (f"[trails]\ntrail_file = {data / 'trails' / 'virtual_trails.txt'}\n"
-              f"hiker_file = {data / 'trails' / 'virtual_hikers.txt'}\n") if with_trails else ""
-    text = (f"[general]\nname = {name}\n[map]\nelevation_file = {data / 'maps' / 'virtual_mountain_elev.asc'}\n"
-            f"fuel_file = {data / 'maps' / 'virtual_mountain_fuel.asc'}\n"
+    trails = (f"[trails]\ntrail_file = {BUKHANSAN / 'trails.txt'}\n"
+              f"hiker_file = {BUKHANSAN / 'hikers.txt'}\n") if with_trails else ""
+    text = (f"[general]\nname = {name}\n[map]\nelevation_file = {BUKHANSAN / 'elev.asc'}\n"
+            f"fuel_file = {BUKHANSAN / 'fuel.asc'}\n"
             f"fuel_models = {SCENARIOS / 'fuel_models.csv'}\n{trails}"
             f"[weather]\nmode = fixed\n[time]\nduration_min = 120\n[montecarlo]\nruns = 5\n{extra}")
     path = tmp / f"{name}.ini"
@@ -123,11 +144,11 @@ def write_edge_scenario(tmp: Path, name: str, extra: str, with_trails: bool = Tr
 def test_edge_cases(tmp: Path) -> None:
     print("\n[엔진] 경계 조건 (--mode all)")
     cases = [
-        ("no_trails", "[ignition]\npoint1 = 120, 80\n", False, "불이 꺼짐|연소 중"),
-        ("zero_resources", "[ignition]\npoint1 = 120, 80\n[suppression]\nfirebreak_cells = 0\nhelicopters = 0\n",
+        ("no_trails", "[ignition]\npoint1 = " + IGNITION + "\n", False, "불이 꺼짐|연소 중"),
+        ("zero_resources", "[ignition]\npoint1 = " + IGNITION + "\n[suppression]\nfirebreak_cells = 0\nhelicopters = 0\n",
          True, "연소 중|불이 꺼짐"),
-        ("no_fire", "[ignition]\npoint1 = 120, 80, 500\n", True, "불이 붙지 않음"),
-        ("too_wet", "[ignition]\npoint1 = 120, 80\n[moisture]\ninitial_dead_moisture_pct = 40\n"
+        ("no_fire", "[ignition]\npoint1 = " + IGNITION + ", 500\n", True, "불이 붙지 않음"),
+        ("too_wet", "[ignition]\npoint1 = " + IGNITION + "\n[moisture]\ninitial_dead_moisture_pct = 40\n"
                     "live_moisture_factor = 3\n", True, "불이 꺼짐"),
     ]
     for name, extra, trails, expected in cases:
@@ -153,7 +174,7 @@ def test_line_endings(tmp: Path) -> None:
                 text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
                 path.write_bytes(text.replace("\n", newline).encode("utf-8"))
         out = tmp / f"out_{style}"
-        code, text = run_engine(data / "scenarios" / "spring_dry_base.ini", "evac", out)
+        code, text = run_engine(data / "scenarios" / BASE.name, "evac", out)
         ok = code == 0 and (out / "arrival_time.csv").exists()
         check(f"{style.upper()} 입력 파일로 실행", ok, f"종료 코드 {code} {text[-200:] if not ok else ''}")
         if ok:
@@ -164,13 +185,21 @@ def test_line_endings(tmp: Path) -> None:
 def test_daylight(tmp: Path) -> None:
     """
     (8단계) 낮/밤: 일몰 시각 계산, 밤 헬기 출동 중지, 밤 보행 속도, 잘못된 설정값.
-    evening_valley.ini 를 [daylight] enabled = 1 / 0 으로 각각 실행해 비교한다.
+    북한산에서 저녁(18:00)에 불이 난 상황을 [daylight] enabled = 1 / 0 으로 각각 실행해 비교한다.
     """
     import json
     print("\n[엔진] 낮/밤 (8단계)")
 
+    evening = ("[time]\nstart_datetime = 2026-04-05 18:00\nduration_min = 360\n"      # 18:00 ~ 24:00
+               "[weather]\nmode = fixed\nfixed_temp_c = 16\nfixed_rh_pct = 15\n"
+               "fixed_wind_speed_ms = 11\nfixed_wind_dir_deg = 225\n"                   # 밤까지 이어지는 남서 강풍
+               "[evacuation]\nnotify_delay_min = 30\n[daylight]\nenabled = 1\n")
+    on_path = write_variant("daylight_on", evening)
     out_on = tmp / "daylight_on"
-    code, text = run_engine(SCENARIOS / "evening_valley.ini", "optimize", out_on)
+    try:
+        code, text = run_engine(on_path, "optimize", out_on)
+    finally:
+        on_path.unlink(missing_ok=True)
     summary = json.loads((out_on / "summary.json").read_text(encoding="utf-8")) if code == 0 else {}
     events = summary.get("daylight", {}).get("events", [])
     sunset = next((e for e in events if e["type"] == "sunset"), None)
@@ -178,10 +207,8 @@ def test_daylight(tmp: Path) -> None:
     check("일몰 시각 계산 (4월 5일 중부 지방 약 18:57)",
           sunset is not None and "18:54" <= sunset["clock"] <= "19:00", f"계산 결과 {sunset}")
 
-    off_copy = SCENARIOS / "zz_test_daylight_off.ini"
+    off_copy = write_variant("daylight_off", evening.replace("enabled = 1", "enabled = 0"))
     try:
-        text_off = (SCENARIOS / "evening_valley.ini").read_text(encoding="utf-8")
-        off_copy.write_text(text_off.replace("enabled           = 1", "enabled           = 0"), encoding="utf-8")
         out_off = tmp / "daylight_off"
         run_engine(off_copy, "optimize", out_off)
     finally:
@@ -205,7 +232,7 @@ def test_daylight(tmp: Path) -> None:
     except (OSError, KeyError, StopIteration, ValueError) as error:
         check("낮/밤 결과 파일 읽기", False, str(error))
 
-    bad = write_edge_scenario(tmp, "bad_daylight", "[ignition]\npoint1 = 120, 80\n[daylight]\nnight_walk_factor = 5\n")
+    bad = write_edge_scenario(tmp, "bad_daylight", "[ignition]\npoint1 = " + IGNITION + "\n[daylight]\nnight_walk_factor = 5\n")
     code, text = run_engine(bad, "run", tmp / "bad_daylight")
     check("잘못된 낮/밤 설정값은 오류 (night_walk_factor = 5)", code == 1 and "night_walk_factor" in text,
           f"종료 코드 {code}")
@@ -226,7 +253,7 @@ def test_season(tmp: Path) -> None:
     def run_season(key: str, extra: str = ""):
         scenario = write_edge_scenario(
             tmp, f"season_{key}",
-            f"[ignition]\npoint1 = 120, 80\n[weather]\nmode = season\n[season]\nseason = {key}\n{extra}")
+            f"[ignition]\npoint1 = {IGNITION}\n[weather]\nmode = season\n[season]\nseason = {key}\n{extra}")
         out = tmp / f"season_{key}"
         code, text = run_engine(scenario, "run", out)
         return code, text, out
@@ -282,7 +309,7 @@ def test_season(tmp: Path) -> None:
     except (OSError, KeyError, ValueError, IndexError) as error:
         check("겨울 결과 읽기", False, str(error))
 
-    bad = write_edge_scenario(tmp, "bad_season", "[ignition]\npoint1 = 120, 80\n[season]\nseason = monsoon\n")
+    bad = write_edge_scenario(tmp, "bad_season", "[ignition]\npoint1 = " + IGNITION + "\n[season]\nseason = monsoon\n")
     code, text = run_engine(bad, "run", tmp / "bad_season")
     check("잘못된 계절 이름은 오류 (season = monsoon)", code == 1 and "season" in text, f"종료 코드 {code}")
 
@@ -349,21 +376,21 @@ def test_mobile(tmp: Path) -> None:
                 "const {runEngine}=await import(R+'/mobile/js/engine_core.js');"
                 "const m=await WebAssembly.compile(fs.readFileSync(R+'/mobile/engine/wildfire.wasm'));"
                 "const rd=(p)=>fs.readFileSync(R+'/'+p);"
-                "const files={'scenario.ini':rd('data/scenarios/spring_dry_base.ini'),'fuel_models.csv':rd('data/scenarios/fuel_models.csv'),"
-                "'virtual_mountain_elev.asc':rd('data/maps/virtual_mountain_elev.asc'),'virtual_mountain_fuel.asc':rd('data/maps/virtual_mountain_fuel.asc'),"
-                "'virtual_trails.txt':rd('data/trails/virtual_trails.txt'),'virtual_hikers.txt':rd('data/trails/virtual_hikers.txt'),"
+                "const files={'scenario.ini':rd('data/scenarios/mountain_bukhansan.ini'),'fuel_models.csv':rd('data/scenarios/fuel_models.csv'),"
+                "'elev.asc':rd('data/mountains/bukhansan/elev.asc'),'fuel.asc':rd('data/mountains/bukhansan/fuel.asc'),"
+                "'trails.txt':rd('data/mountains/bukhansan/trails.txt'),'hikers.txt':rd('data/mountains/bukhansan/hikers.txt'),"
                 "'sample_spring_dry.csv':rd('data/weather/sample_spring_dry.csv')};"
                 "const r=await runEngine(m,files,['--mode','evac']);fs.writeFileSync(process.argv[2],r.outputs['arrival_time.csv']||'');")
-    ini = (SCENARIOS / "spring_dry_base.ini").read_text(encoding="utf-8")
+    ini = BASE.read_text(encoding="utf-8")
     flat = re.sub(r"=\s*(\.\./)+[\w/]*?([\w.]+\.(asc|txt|csv))", r"= \2", ini)
     work = tmp / "wasm_compare"
     work.mkdir(exist_ok=True)
-    (work / "spring_dry_base.ini").write_text(flat, encoding="utf-8")
-    script2 = run_wasm.replace("rd('data/scenarios/spring_dry_base.ini')", f"fs.readFileSync({str(work / 'spring_dry_base.ini')!r})")
+    (work / BASE.name).write_text(flat, encoding="utf-8")
+    script2 = run_wasm.replace("rd('data/scenarios/mountain_bukhansan.ini')", f"fs.readFileSync({str(work / BASE.name)!r})")
     wasm_csv = work / "wasm_arrival.csv"
     subprocess.run([node, "--input-type=module", "-e", script2, str(ROOT), str(wasm_csv)],
                    capture_output=True, text=True, timeout=120)
-    code, _ = run_engine(SCENARIOS / "spring_dry_base.ini", "evac", work / "native")
+    code, _ = run_engine(BASE, "evac", work / "native")
     native = (work / "native" / "arrival_time.csv")
     check("휴대폰(WebAssembly) 엔진 = PC 엔진 (불 도착 시각 9만 칸이 모두 같음)",
           code == 0 and wasm_csv.exists() and native.exists()
@@ -380,21 +407,32 @@ def test_hiker_teams(tmp: Path) -> None:
     from services import hiker_setup as hs
     from services.result_loader import load_scenario_preview
 
-    preview = load_scenario_preview(SCENARIOS / "spring_dry_base.ini")
+    preview = load_scenario_preview(BASE)
     teams = hs.resize_teams(hs.teams_from_hikers(preview.hikers, preview.nodes), 12, preview.nodes)
     check("팀 수는 최대 10팀", len(teams) == hs.MAX_TEAMS)
     check("팀 수는 최소 1팀", len(hs.resize_teams(teams, 0, preview.nodes)) == hs.MIN_TEAMS)
 
-    snap = hs.snap_to_trail(preview.nodes, preview.edges, 150, 106)
-    far = hs.snap_to_trail(preview.nodes, preview.edges, 20, 20)
-    near_node = hs.snap_to_trail(preview.nodes, preview.edges, 166, 91)
+    # 북한산 등산로에서 시험 좌표 고르기: 노드에서 멀리 떨어진 간선 가운데 점 2개, 노드 바로 옆, 등산로에서 먼 곳
+    def mid_points():
+        for edge in preview.edges:
+            for x, y in edge.points[1:-1]:
+                if min((n.x - x) ** 2 + (n.y - y) ** 2 for n in preview.nodes) >= 6 ** 2:
+                    yield x, y
+                    break
+    (mx1, my1), (mx2, my2) = list(mid_points())[:2]
+    node7 = next(n for n in preview.nodes if n.kind == "JUNCTION")
+    far_xy = next((x, y) for x in range(0, 300, 7) for y in range(0, 300, 7)
+                  if hs.snap_to_trail(preview.nodes, preview.edges, x, y) is None)
+    snap = hs.snap_to_trail(preview.nodes, preview.edges, mx1, my1)
+    far = hs.snap_to_trail(preview.nodes, preview.edges, *far_xy)
+    near_node = hs.snap_to_trail(preview.nodes, preview.edges, node7.x + 1, node7.y)
     check("등산로 위 가장 가까운 점 (가운데 / 노드 근처 / 너무 멂)",
           snap is not None and snap.node_id is None and far is None
-          and near_node is not None and near_node.node_id == 7)
+          and near_node is not None and near_node.node_id == node7.id)
 
-    teams[5] = hs.copy_team(teams[5], node_id=None, x=150, y=106)
-    teams[6] = hs.copy_team(teams[6], node_id=None, x=222, y=150)
-    teams[7] = hs.copy_team(teams[7], node_id=None, x=151, y=105)       # 6번 팀과 같은 자리
+    teams[5] = hs.copy_team(teams[5], node_id=None, x=mx1, y=my1)
+    teams[6] = hs.copy_team(teams[6], node_id=None, x=mx2, y=my2)
+    teams[7] = hs.copy_team(teams[7], node_id=None, x=mx1, y=my1)       # 6번 팀과 같은 자리
     nodes, edges, hikers = hs.build_layout(preview.nodes, preview.edges, teams)
     new_ids = {n.id for n in nodes} - {n.id for n in preview.nodes}
     check("찍은 곳에서 등산로를 나눔 (새 지점 2개, 간선 +2, 같은 자리는 같은 지점)",
@@ -403,7 +441,7 @@ def test_hiker_teams(tmp: Path) -> None:
     trail_file, hiker_file = tmp / "teams_trails.txt", tmp / "teams_hikers.txt"
     hs.write_trail_file(trail_file, nodes, edges)
     hs.write_hiker_file(hiker_file, hikers)
-    scenario = write_edge_scenario(tmp, "teams10", "[ignition]\npoint1 = 180, 120\n", with_trails=False)
+    scenario = write_edge_scenario(tmp, "teams10", f"[ignition]\npoint1 = {IGNITION}\n", with_trails=False)
     scenario.write_text(scenario.read_text(encoding="utf-8") +
                         f"[trails]\ntrail_file = {trail_file}\nhiker_file = {hiker_file}\n", encoding="utf-8")
     code, text = run_engine(scenario, "evac", tmp / "teams10")
@@ -443,7 +481,7 @@ def test_python_helpers(tmp: Path) -> None:
     # 시나리오 쓰기: 임시 폴더에 원본을 복사해 바꾸고, 미리보기로 다시 읽어 확인
     scenario_copy = SCENARIOS / "zz_test_copy.ini"
     try:
-        shutil.copy(SCENARIOS / "spring_dry_base.ini", scenario_copy)
+        shutil.copy(BASE, scenario_copy)
         o = ScenarioOverrides()
         o.ignitions = [(100, 90, 0.0)]
         o.set("weather", "mode", "fixed")
@@ -457,7 +495,7 @@ def test_python_helpers(tmp: Path) -> None:
     finally:
         scenario_copy.unlink(missing_ok=True)
 
-    summary = tmp / "spring_dry_base_all" / "summary.json"
+    summary = tmp / f"{BASE.stem}_all" / "summary.json"
     if summary.exists():
         result = load_result(summary)
         check("결과 읽기 (대피·진화·몬테카를로 포함)",

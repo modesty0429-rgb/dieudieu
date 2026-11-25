@@ -61,7 +61,7 @@ def resolve_engine_path(path_text: str) -> Path:
 def list_scenarios() -> list[Path]:
     """GUI에서 고를 수 있는 시나리오 목록 (테스트용·GUI 생성 파일 제외)."""
     # 실제 산(mountain_<id>.ini)만, data/mountains/mountains.json 의 순서대로.
-    # 처음에 만든 가상 산 시나리오(spring_dry_base 등)는 자동 테스트·명령줄 예시용으로만 남겨 두고 목록에서는 뺀다.
+    # (처음에 만든 가상 산은 지웠다. 자동 테스트도 북한산 기준)
     import json
 
     order: list[str] = []

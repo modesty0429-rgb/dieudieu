@@ -126,7 +126,7 @@ build.bat
    | C/C++ → 전처리기 | 전처리기 정의 | 맨 앞에 `_CRT_SECURE_NO_WARNINGS;` 추가 |
    | C/C++ → 명령줄 | 추가 옵션 | `/utf-8` |
    | 링커 → 시스템 | 하위 시스템 | 콘솔 (`/SUBSYSTEM:CONSOLE`) |
-   | 디버깅 | 명령 인수 | `..\data\scenarios\spring_dry_base.ini --mode printmap` |
+   | 디버깅 | 명령 인수 | `..\data\scenarios\mountain_bukhansan.ini --mode printmap` |
    | 디버깅 | 작업 디렉터리 | `(저장소 폴더)\c_core` (실제 경로) |
 
 5. **Ctrl+Shift+B** 로 빌드, **Ctrl+F5** 로 실행.
@@ -178,27 +178,21 @@ wildfire.exe <시나리오.ini> [--mode 모드] [--out 결과폴더] [--seed 시
 
 ### 4-1. 제공 시나리오 (`data/scenarios/`)
 
-가상 산 시나리오 3개는 명령줄 예시와 자동 테스트용이고, GUI 산 목록에는 실제 산 6곳만 나옵니다.
-
 | 파일 | 내용 |
 |---|---|
-| `spring_dry_base.ini` | 봄철 건조한 날, 시간별 기상 파일, 서풍. 기본 시나리오 |
-| `spring_danger_valley.ini` | 계곡 아래 발화 + 남서풍 11 m/s + 신고 140분 지연. 등산객 1팀이 고립되는 위험 사례 |
-| `calm_fixed_weather.ini` | 무풍 고정 기상. 경사 효과(오르막으로 더 번짐) 확인용 |
-| `evening_valley.ini` | 오후 5시 발화, 일몰 무렵 대피. 낮/밤 효과 확인용 (`[daylight] enabled = 0`으로 바꿔 비교) |
+| `mountain_<산>.ini` | **실제 산** 6곳(북한산·설악산·오대산(충남 금산)·지리산·팔공산(전북 장수)·한라산). 봄철 건조한 날, 10시간, 시간별 기상 파일 (7-1 참고) |
 | `season_presets.ini` | GUI "계절" 선택 값 (봄·여름·가을·겨울: 대표 날짜, 연료 수분, 눈 경계). 어떤 시나리오든 `[weather] mode = season` + `[season] season = winter`처럼 쓸 수도 있음 |
 | `tests/*.ini` | 일부러 틀린 시나리오 5개 (오류 메시지 확인용) |
-| `mountain_<산>.ini` | **실제 산** 6곳(북한산·설악산·오대산(충남 금산)·지리산·팔공산(전북 장수)·한라산)의 실제 지형. GUI 산 목록에는 이 6곳만 보임 (7-1 참고) |
 
 ### 4-2. 실행 예
 
 ```bat
-bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode printmap
-bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode run --map-every 60
-bin\wildfire.exe ..\data\scenarios\spring_danger_valley.ini --mode evac
-bin\wildfire.exe ..\data\scenarios\spring_danger_valley.ini --mode optimize
-bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode mc
-bin\wildfire.exe ..\data\scenarios\spring_dry_base.ini --mode all --seed 7 --out ..\output\seed7
+bin\wildfire.exe ..\data\scenarios\mountain_bukhansan.ini --mode printmap
+bin\wildfire.exe ..\data\scenarios\mountain_bukhansan.ini --mode run --map-every 60
+bin\wildfire.exe ..\data\scenarios\mountain_seoraksan.ini --mode evac
+bin\wildfire.exe ..\data\scenarios\mountain_jirisan.ini --mode optimize
+bin\wildfire.exe ..\data\scenarios\mountain_bukhansan.ini --mode mc
+bin\wildfire.exe ..\data\scenarios\mountain_bukhansan.ini --mode all --seed 7 --out ..\output\seed7
 ```
 
 - **run**: 30분 간격 통계 표와 마지막 시각의 화재 지도(`@` 연소 중, `x` 전소)
@@ -308,19 +302,9 @@ python tools/run_tests.py
 
 ## 7. 데이터 만들기·바꾸기
 
-가상 산(300 × 300칸, 30 m = 9 km × 9 km, 최고 950 m)과 등산로는 Python 생성기로 만듭니다. 저장소 폴더에서:
-
-```bash
-python gui/services/terrain_generator.py
-```
-
-```bash
-python gui/services/trail_generator.py
-```
-
-- `--size`, `--cell`, `--seed`, `--max-elev` 옵션으로 다른 산을 만들 수 있습니다. (`--help` 참고)
-- **실제 지형**: QGIS 등에서 DEM(수치표고모델)을 **ESRI ASCII Grid (.asc)** 로 내보내 `data/maps/`에 넣고, 시나리오의 `elevation_file`을 바꿉니다. 연료 격자도 같은 크기의 .asc로 만듭니다.
+- 산 지도·숲·등산로는 모두 실제 자료로 만듭니다 (7-1). 처음에 쓰던 가상 산과 그 생성기는 지웠습니다.
 - **연료 파라미터**는 `data/scenarios/fuel_models.csv`, **계절 프리셋**은 `data/scenarios/season_presets.ini`에 있습니다. 값마다 [근거]/[가정]을 표시했습니다.
+- 자동 테스트(`python tools/run_tests.py`)는 북한산을 기준으로 엔진·대피·진화·낮밤·계절·휴대폰 엔진을 시험합니다.
 
 줄 수 집계: `python tools/count_lines.py` → `docs/LINE_COUNT.md`
 

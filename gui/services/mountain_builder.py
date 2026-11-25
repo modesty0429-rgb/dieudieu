@@ -35,7 +35,6 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # gui 폴더 (직접 실행할 때)
 
 from services import app_config  # noqa: E402
-from services.terrain_generator import write_asc  # noqa: E402
 
 MOUNTAIN_DIR = app_config.DATA_DIR / "mountains"
 REGISTRY_FILE = MOUNTAIN_DIR / "mountains.json"
@@ -50,6 +49,21 @@ DEM_SOURCE = "AWS Terrain Tiles (Mapzen/Tilezen terrarium, 한국은 주로 SRTM
 
 # 연료 코드 (fuel_models.csv 와 같음)
 FUEL_GRASS, FUEL_SHRUB, FUEL_CONIFER, FUEL_BROADLEAF, FUEL_MIXED, FUEL_WATER, FUEL_ROCK = 1, 2, 3, 4, 5, 8, 9
+
+
+def write_asc(path: Path, values: np.ndarray, cell_size: float, value_format: str) -> None:
+    """ESRI ASCII Grid(.asc) 로 저장한다 (C 엔진이 읽는 지형·연료 지도 형식). 첫 데이터 줄이 북쪽 행."""
+    rows, cols = values.shape
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(f"ncols        {cols}\n")
+        f.write(f"nrows        {rows}\n")
+        f.write("xllcorner    0.0\n")
+        f.write("yllcorner    0.0\n")
+        f.write(f"cellsize     {cell_size}\n")
+        f.write("NODATA_value -9999\n")
+        for row in values:
+            f.write(" ".join(value_format.format(v) for v in row))
+            f.write("\n")
 
 
 # ----------------------------------------------------------------------
@@ -260,7 +274,7 @@ def default_ignition(elevation: np.ndarray, fuel: np.ndarray, summit: tuple[int,
 
 
 def write_scenario(mountain: dict, ignition: tuple[int, int]) -> Path:
-    """data/scenarios/mountain_<id>.ini — 기본 시나리오(spring_dry_base)와 같은 설정에 지도만 이 산으로"""
+    """data/scenarios/mountain_<id>.ini — 모든 산이 같은 설정(봄 건조한 날, 10시간)에 지도만 다름"""
     mid = mountain["id"]
     folder = f"../mountains/{mid}"
     has_trails = (mountain_folder(mid) / "trails.txt").exists()

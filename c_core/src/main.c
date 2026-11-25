@@ -68,7 +68,7 @@ static void print_usage(void)
     printf("  --seed <정수>   난수 시드 (시나리오의 random_seed 대신 사용)\n");
     printf("  --step <정수>   콘솔 지도에서 몇 칸마다 한 글자를 찍을지 (기본: 자동)\n");
     printf("  --map-every <분> run 모드에서 이 간격마다 콘솔에 화재 지도 출력 (기본: 마지막에만)\n");
-    printf("예: wildfire.exe ..\\data\\scenarios\\spring_dry_base.ini --mode printmap\n");
+    printf("예: wildfire.exe ..\\data\\scenarios\\mountain_bukhansan.ini --mode printmap\n");
     fflush(stdout);
 }
 
