@@ -1,12 +1,12 @@
 # 줄 수 현황 (LINE_COUNT)
 
-> `python tools/count_lines.py` 로 자동 생성 — 2026-11-25
+> `python tools/count_lines.py` 로 자동 생성 — 2026-11-26
 
 | 언어 | 현재 | 목표 | 진행률 |
 |---|---:|---:|---:|
 | C | 9982 | 약 8,000 | 125% |
-| Python | 9403 | 약 4,000 | 235% |
-| **합계** | **19385** | **약 12,000** | **162%** |
+| Python | 9420 | 약 4,000 | 236% |
+| **합계** | **19402** | **약 12,000** | **162%** |
 
 ## C
 
@@ -95,9 +95,9 @@
 | `gui/views/evacuation_view.py` | 205 | 167 | 11 | 27 |
 | `gui/views/hiker_group.py` | 239 | 175 | 28 | 36 |
 | `gui/views/log_console.py` | 72 | 50 | 6 | 16 |
-| `gui/views/main_window.py` | 360 | 282 | 36 | 42 |
+| `gui/views/main_window.py` | 366 | 288 | 36 | 42 |
 | `gui/views/map_view.py` | 532 | 419 | 57 | 56 |
-| `gui/views/mobile_dialog.py` | 120 | 99 | 7 | 14 |
+| `gui/views/mobile_dialog.py` | 131 | 107 | 10 | 14 |
 | `gui/views/playback_bar.py` | 124 | 90 | 10 | 24 |
 | `gui/views/report_view.py` | 91 | 69 | 8 | 14 |
 | `gui/views/scenario_panel.py` | 484 | 385 | 48 | 51 |
@@ -112,4 +112,4 @@
 | `tools/count_lines.py` | 119 | 92 | 9 | 18 |
 | `tools/make_test_shp.py` | 112 | 80 | 10 | 22 |
 | `tools/run_tests.py` | 726 | 579 | 64 | 83 |
-| **합계** | **9403** | **6759** | **1333** | **1311** |
+| **합계** | **9420** | **6773** | **1336** | **1311** |
